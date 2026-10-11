@@ -29,6 +29,14 @@ export const leadFields = {
     .max(3650)
     .nullable()
     .describe("Get back in touch this many days after the last contact, e.g. 90. Applies in any stage. Null turns it off"),
+  origin: text(60)
+    .nullable()
+    .describe(
+      'Where this lead came from, as a short reusable channel, e.g. "Community", "Own research", "Personal network", "Job application". Reuse an origin already listed by get_pipeline when one fits, so leads can be compared by origin',
+    ),
+  origin_detail: text(300)
+    .nullable()
+    .describe('The specifics behind the origin, e.g. "dbt Slack", "Groundwork", "Friend from school"'),
   headcount: z.number().int().nonnegative().nullable().describe("Approximate number of employees"),
   annual_revenue_usd: z.number().int().nonnegative().nullable().describe("Estimated annual revenue in US dollars"),
   location: text(200).nullable().describe("Headquarters, as City, Region or City, Country"),

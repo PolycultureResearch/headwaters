@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Contact, Fit, LeadDetail, Note, Stage } from "../shared/types";
 import { api, type LeadPatch } from "./api";
@@ -7,6 +7,8 @@ import { formatAgo, formatDate, formatDays, formatMoney, hostname, parseAmount, 
 interface LeadPanelProps {
   leadId: string;
   stages: Stage[];
+  // Origins already in use, offered as suggestions so the same channel keeps the same name.
+  origins: string[];
   version: number;
   onClose: () => void;
   onChanged: () => void;
@@ -16,7 +18,11 @@ interface LeadPanelProps {
 /** Markdown with links that open in a new tab, so reading a source does not lose the board. */
 function Markdown({ children }: { children: string }) {
   return (
-    <ReactMarkdown components={{ a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" /> }}>
+    <ReactMarkdown
+      components={{
+        a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+      }}
+    >
       {children}
     </ReactMarkdown>
   );
@@ -24,13 +30,24 @@ function Markdown({ children }: { children: string }) {
 
 const FITS: Fit[] = ["strong", "good", "unclear", "weak"];
 const NOTE_KINDS: Note["kind"][] = ["note", "meeting", "call", "email"];
+// Offered alongside the origins already in use; any other text is accepted too.
+const SUGGESTED_ORIGINS = [
+  "Community",
+  "Own research",
+  "Product I use",
+  "Lead site",
+  "Job application",
+  "Personal network",
+  "Referral",
+  "Inbound",
+];
 const PRIORITIES = [
   { value: 1, label: "High" },
   { value: 2, label: "Normal" },
   { value: 3, label: "Low" },
 ];
 
-export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError }: LeadPanelProps) {
+export function LeadPanel({ leadId, stages, origins, version, onClose, onChanged, onError }: LeadPanelProps) {
   const [lead, setLead] = useState<LeadDetail | null>(null);
 
   useEffect(() => {
@@ -77,7 +94,12 @@ export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError
       <div className="scrim" onClick={onClose} />
       <aside className="panel" aria-label={lead.name}>
         <header className="panel-head">
-          <EditableText className="panel-title" label="Company name" value={lead.name} onSave={(name) => name && save({ name })} />
+          <EditableText
+            className="panel-title"
+            label="Company name"
+            value={lead.name}
+            onSave={(name) => name && save({ name })}
+          />
           <button className="ghost close" onClick={onClose} aria-label="Close">
             ✕
           </button>
@@ -162,7 +184,11 @@ export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError
                 className="narrow boxed"
                 value={lead.check_in_days?.toString() ?? ""}
                 placeholder="–"
-                onSave={(v) => save({ check_in_days: /^\d+$/.test(v) && Number(v) > 0 ? Number(v) : null })}
+                onSave={(v) =>
+                  save({
+                    check_in_days: /^\d+$/.test(v) && Number(v) > 0 ? Number(v) : null,
+                  })
+                }
               />
               days
               {lead.check_in_due && <span>· next {formatDate(lead.check_in_due)}</span>}
@@ -180,6 +206,23 @@ export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError
             onSave={(summary) => save({ summary: summary || null })}
           />
           <dl className="facts">
+            <Fact label="Origin">
+              <EditableText
+                label="Origin: where this lead came from"
+                value={lead.origin ?? ""}
+                placeholder="Where it came from"
+                suggestions={[...new Set([...origins, ...SUGGESTED_ORIGINS])]}
+                onSave={(v) => save({ origin: v || null })}
+              />
+            </Fact>
+            <Fact label="Origin detail">
+              <EditableText
+                label="Origin detail"
+                value={lead.origin_detail ?? ""}
+                placeholder="–"
+                onSave={(v) => save({ origin_detail: v || null })}
+              />
+            </Fact>
             <Fact label="Priority">
               <select value={lead.priority} onChange={(e) => save({ priority: Number(e.target.value) })}>
                 {PRIORITIES.map((p) => (
@@ -216,13 +259,28 @@ export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError
               />
             </Fact>
             <Fact label="Location">
-              <EditableText label="Location" value={lead.location ?? ""} placeholder="–" onSave={(v) => save({ location: v || null })} />
+              <EditableText
+                label="Location"
+                value={lead.location ?? ""}
+                placeholder="–"
+                onSave={(v) => save({ location: v || null })}
+              />
             </Fact>
             <Fact label="Industry">
-              <EditableText label="Industry" value={lead.industry ?? ""} placeholder="–" onSave={(v) => save({ industry: v || null })} />
+              <EditableText
+                label="Industry"
+                value={lead.industry ?? ""}
+                placeholder="–"
+                onSave={(v) => save({ industry: v || null })}
+              />
             </Fact>
             <Fact label="Website" wide>
-              <EditableText label="Website" value={lead.website ?? ""} placeholder="–" onSave={(v) => save({ website: v || null })} />
+              <EditableText
+                label="Website"
+                value={lead.website ?? ""}
+                placeholder="–"
+                onSave={(v) => save({ website: v || null })}
+              />
             </Fact>
             <Fact label="Certifications" wide>
               <EditableText
@@ -255,7 +313,9 @@ export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError
               const days = ((next ? Date.parse(next.at) : Date.now()) - Date.parse(step.at)) / 86_400_000;
               return (
                 <li key={step.id}>
-                  <span className="history-stage">{stages.find((s) => s.id === step.to_stage_id)?.name ?? step.to_stage_id}</span>
+                  <span className="history-stage">
+                    {stages.find((s) => s.id === step.to_stage_id)?.name ?? step.to_stage_id}
+                  </span>
                   <span className="muted">
                     {formatDate(step.at)} · {formatDays(days)}
                     {next ? "" : " so far"}
@@ -299,12 +359,14 @@ interface EditableTextProps {
   placeholder?: string;
   multiline?: boolean;
   className?: string;
+  suggestions?: string[];
   onSave: (value: string) => void;
 }
 
 /** A field that looks like plain text until focused, and saves when focus leaves it. */
-function EditableText({ label, value, placeholder, multiline, className, onSave }: EditableTextProps) {
+function EditableText({ label, value, placeholder, multiline, className, suggestions, onSave }: EditableTextProps) {
   const [draft, setDraft] = useState(value);
+  const listId = useId();
   const focused = useRef(false);
 
   useEffect(() => {
@@ -330,19 +392,29 @@ function EditableText({ label, value, placeholder, multiline, className, onSave 
 
   if (multiline) return <textarea {...props} rows={Math.max(2, Math.ceil(draft.length / 60))} />;
   return (
-    <input
-      {...props}
-      type="text"
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") {
-          setDraft(value);
-          // Blur after the reset has rendered, so the old draft is not saved.
-          const input = e.currentTarget;
-          requestAnimationFrame(() => input.blur());
-        }
-      }}
-    />
+    <>
+      {suggestions && (
+        <datalist id={listId}>
+          {suggestions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+      )}
+      <input
+        {...props}
+        type="text"
+        list={suggestions ? listId : undefined}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            setDraft(value);
+            // Blur after the reset has rendered, so the old draft is not saved.
+            const input = e.currentTarget;
+            requestAnimationFrame(() => input.blur());
+          }
+        }}
+      />
+    </>
   );
 }
 
@@ -419,7 +491,10 @@ function ContactRow({ contact, apply, reload }: { contact: Contact; apply: Apply
       </div>
       <div className="row-actions">
         {!contact.is_primary && (
-          <button className="ghost small" onClick={() => apply(() => api.updateContact(contact.id, { is_primary: true }))}>
+          <button
+            className="ghost small"
+            onClick={() => apply(() => api.updateContact(contact.id, { is_primary: true }))}
+          >
             Make primary
           </button>
         )}
@@ -529,7 +604,13 @@ function Briefing({ lead, save }: { lead: LeadDetail; save: (patch: LeadPatch) =
       </h3>
       {editing ? (
         <div className="note-form">
-          <textarea value={draft} rows={16} aria-label="Briefing, in Markdown" onChange={(e) => setDraft(e.target.value)} autoFocus />
+          <textarea
+            value={draft}
+            rows={16}
+            aria-label="Briefing, in Markdown"
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+          />
           <div className="note-form-actions">
             <button className="ghost small" onClick={() => setEditing(false)}>
               Cancel

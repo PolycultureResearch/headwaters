@@ -43,10 +43,14 @@ Rate fit honestly. A weak fit recorded as weak is more useful than an optimistic
    | `annual_revenue_usd` | Estimated annual revenue in US dollars, as a whole number. |
    | `location` | Headquarters, as "City, Region" or "City, Country". |
    | `industry` | A few words. |
+   | `origin` | Where the lead came from, as a short channel. Reuse one from the `origins` list in `get_pipeline` when it fits, for example "Community" or "Own research". |
+   | `origin_detail` | The specifics, for example "dbt Slack" or "Friend from school". |
    | `certifications` | A list, for example `["B Corp", "USDA Organic"]`. Only ones you verified. |
    | `data_stack` | A list of tools, for example `["Segment", "Snowflake", "Looker"]`. |
    | `fit` | `strong`, `good`, `unclear` or `weak`. |
    | `briefing` | The Markdown briefing. |
+
+   Origin is about how Devon came across the company, not about the company, so it cannot be researched. Use what Devon said; if he did not say, ask rather than guess.
 
    Leave a field out when you could not find it. An empty field is honest; a guessed one looks like a fact on the board. Estimates are fine for headcount and revenue as long as the briefing says they are estimates and where they came from.
 

@@ -28,6 +28,8 @@ export type LeadPatch = Partial<
     | "follow_up_on"
     | "last_contact_at"
     | "check_in_days"
+    | "origin"
+    | "origin_detail"
     | "headcount"
     | "annual_revenue_usd"
     | "location"

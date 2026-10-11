@@ -540,6 +540,21 @@ textarea {
   width: 55%;
 }
 
+.funnel-heading {
+  margin: 36px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.funnel-table.origins .num {
+  width: auto;
+}
+
+.funnel-table .faint {
+  color: var(--faint);
+}
+
 .bar-track {
   position: relative;
   height: 24px;

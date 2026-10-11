@@ -34,6 +34,9 @@ export interface LeadSummary {
   // How often to get back in touch, and the date that makes the next check-in due.
   check_in_days: number | null;
   check_in_due: string | null;
+  // Where the lead came from: a short reusable channel, and the specifics.
+  origin: string | null;
+  origin_detail: string | null;
   headcount: number | null;
   annual_revenue_usd: number | null;
   location: string | null;
@@ -86,6 +89,8 @@ export interface LeadDetail extends LeadSummary {
 export interface Pipeline {
   stages: Stage[];
   leads: LeadSummary[];
+  // Every origin in use, most used first, so new leads can reuse the same wording.
+  origins: string[];
 }
 
 export interface FunnelStage {
@@ -102,8 +107,20 @@ export interface FunnelStage {
   median_days: number | null;
 }
 
+export interface OriginFunnel {
+  // Null groups the leads with no origin recorded.
+  origin: string | null;
+  leads: number;
+  // How many of them ever reached each funnel stage or a later one, in the same order as Funnel.stages.
+  reached: number[];
+  won: number;
+  lost: number;
+}
+
 export interface Funnel {
   stages: FunnelStage[];
+  // The same funnel split by where leads came from, biggest origin first.
+  origins: OriginFunnel[];
   total_leads: number;
   won: number;
   lost: number;

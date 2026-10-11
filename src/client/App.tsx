@@ -15,7 +15,16 @@ const VIEWS: { id: View; label: string }[] = [
 ];
 
 function matches(lead: LeadSummary, needle: string): boolean {
-  return [lead.name, lead.industry, lead.location, lead.primary_contact, ...lead.certifications, ...lead.data_stack]
+  return [
+    lead.name,
+    lead.industry,
+    lead.location,
+    lead.origin,
+    lead.origin_detail,
+    lead.primary_contact,
+    ...lead.certifications,
+    ...lead.data_stack,
+  ]
     .filter(Boolean)
     .some((value) => value!.toLowerCase().includes(needle));
 }
@@ -148,6 +157,7 @@ export function App() {
           key={selected}
           leadId={selected}
           stages={pipeline.stages}
+          origins={pipeline.origins}
           version={version}
           onClose={() => setSelected(null)}
           onChanged={refresh}

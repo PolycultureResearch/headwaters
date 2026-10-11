@@ -63,10 +63,52 @@ export function FunnelView({ version }: { version: number }) {
         </tbody>
       </table>
 
+      <h2 className="funnel-heading">By origin</h2>
+      <table className="funnel-table origins">
+        <thead>
+          <tr>
+            <th scope="col">Origin</th>
+            <th scope="col" className="num">
+              Leads
+            </th>
+            {funnel.stages.slice(1).map((stage) => (
+              <th scope="col" className="num" key={stage.stage_id}>
+                {stage.name}
+              </th>
+            ))}
+            <th scope="col" className="num">
+              Won
+            </th>
+            <th scope="col" className="num">
+              Lost
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {funnel.origins.map((row) => (
+            <tr key={row.origin ?? ""}>
+              <th scope="row" className={row.origin ? undefined : "muted"}>
+                {row.origin ?? "Not set"}
+              </th>
+              <td className="num">{row.leads}</td>
+              {row.reached.slice(1).map((count, i) => (
+                <td className="num" key={funnel.stages[i + 1].stage_id}>
+                  {count || <span className="faint">–</span>}
+                </td>
+              ))}
+              <td className="num">{row.won || <span className="faint">–</span>}</td>
+              <td className="num">{row.lost || <span className="faint">–</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       <p className="footnote">
-        Moved on counts only leads that have left a stage: the share of them that went forward. Leads still waiting in
-        a stage are left out. {funnel.lost} lost and {funnel.dormant} dormant out of {funnel.total_leads} leads. These
-        numbers mean little until a few dozen leads have moved through.
+        By origin counts how many leads from each source ever got as far as each stage, so a source that produces
+        meetings stands out from one that only produces names. Moved on counts only leads that have left a stage: the
+        share of them that went forward. Leads still waiting in a stage are left out. {funnel.lost} lost and{" "}
+        {funnel.dormant} dormant out of {funnel.total_leads} leads. These numbers mean little until a few dozen leads
+        have moved through.
       </p>
     </div>
   );

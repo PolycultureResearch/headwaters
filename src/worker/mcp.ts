@@ -24,7 +24,8 @@ Working conventions:
 - Record what happened with add_note (kind "meeting", "call" or "email" when it was one). Put durable company facts in the structured fields with update_lead, not only in notes.
 - Research goes in the lead's briefing (Markdown), with the structured fields (headcount, annual_revenue_usd, location, industry, certifications, data_stack, fit) filled from it. Leave a field out when you could not find it; do not guess silently.
 - Moving a lead to a dormant stage should come with follow_up_on.
-- Every lead tracks last_contact_at. add_note with kind meeting, call or email updates it; use log_contact when contact happened but there is nothing more to record, or when syncing from email. Set check_in_days on a lead to have it resurface that many days after the last contact, in any stage.`;
+- Every lead tracks last_contact_at. add_note with kind meeting, call or email updates it; use log_contact when contact happened but there is nothing more to record, or when syncing from email. Set check_in_days on a lead to have it resurface that many days after the last contact, in any stage.
+- Every lead should have an origin: where it came from, as a short reusable channel (get_pipeline lists the origins in use), with origin_detail for the specifics. Ask if you are adding a lead and do not know. get_funnel compares origins.`;
 
 const lead = z.string().describe("The lead's name or id");
 
@@ -66,27 +67,27 @@ export function createServer(env: Env): McpServer {
     {
       title: "Get pipeline",
       description:
-        "The whole board: every stage (with its exit criteria) and the leads in it, with time in stage, next action and whether each needs attention. Optionally filter by stage or search text.",
+        "The whole board: every stage (with its exit criteria) and the leads in it, with time in stage, next action and whether each needs attention. Also lists the lead origins in use. Optionally filter by stage or search text.",
       inputSchema: {
         stage: z.string().optional().describe("Only leads in this stage (name or id)"),
-        query: z.string().optional().describe("Only leads whose name, industry, location or certifications contain this text"),
+        query: z.string().optional().describe("Only leads whose name, industry, location, origin or certifications contain this text"),
       },
       annotations: readOnly,
     },
     ({ stage, query }) =>
       run(async () => {
-        const { stages, leads } = await store.getPipeline();
+        const { stages, leads, origins } = await store.getPipeline();
         const stageId = stage ? (await store.resolveStage(stage)).id : null;
         const needle = query?.trim().toLowerCase();
         const name = (id: string) => stages.find((s) => s.id === id)?.name ?? id;
         const matches = leads.filter((l) => {
           if (stageId && l.stage_id !== stageId) return false;
           if (!needle) return true;
-          return [l.name, l.industry, l.location, l.summary, ...l.certifications, ...l.data_stack]
+          return [l.name, l.industry, l.location, l.summary, l.origin, l.origin_detail, ...l.certifications, ...l.data_stack]
             .filter(Boolean)
             .some((value) => value!.toLowerCase().includes(needle));
         });
-        return { stages, leads: matches.map((l) => brief(l, name)) };
+        return { stages, origins, leads: matches.map((l) => brief(l, name)) };
       }),
   );
 
@@ -123,7 +124,7 @@ export function createServer(env: Env): McpServer {
     {
       title: "Get funnel statistics",
       description:
-        "Stage-by-stage conversion rates and median days in each stage, plus overall lead-to-win conversion and how many leads it takes to win one client. Based on the recorded stage history.",
+        "Stage-by-stage conversion rates and median days in each stage, plus overall lead-to-win conversion and how many leads it takes to win one client. Also the same funnel split by lead origin, to show which sources of leads go furthest. Based on the recorded stage history.",
       inputSchema: {},
       annotations: readOnly,
     },

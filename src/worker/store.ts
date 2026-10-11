@@ -8,6 +8,7 @@ import type {
   LeadSummary,
   Note,
   NoteKind,
+  OriginFunnel,
   Pipeline,
   Stage,
   StageKind,
@@ -27,6 +28,8 @@ export interface LeadFields {
   follow_up_on?: string | null;
   last_contact_at?: string | null;
   check_in_days?: number | null;
+  origin?: string | null;
+  origin_detail?: string | null;
   headcount?: number | null;
   annual_revenue_usd?: number | null;
   location?: string | null;
@@ -74,6 +77,8 @@ const LEAD_COLUMNS = [
   "follow_up_on",
   "last_contact_at",
   "check_in_days",
+  "origin",
+  "origin_detail",
   "headcount",
   "annual_revenue_usd",
   "location",
@@ -270,6 +275,8 @@ export class Store {
       days_since_contact: lastContact ? Math.max(0, Math.floor(daysBetween(lastContact, nowIso()))) : null,
       check_in_days: checkInDays,
       check_in_due: checkInDue,
+      origin: (row.origin as string | null) ?? null,
+      origin_detail: (row.origin_detail as string | null) ?? null,
       headcount: (row.headcount as number | null) ?? null,
       annual_revenue_usd: (row.annual_revenue_usd as number | null) ?? null,
       location: (row.location as string | null) ?? null,
@@ -296,7 +303,22 @@ export class Store {
     const { results } = await this.db
       .prepare(`${Store.SUMMARY_SQL} WHERE l.archived_at IS NULL ORDER BY l.priority, l.stage_entered_at`)
       .all<Row>();
-    return { stages, leads: results.map((row) => this.toSummary(row, byId)) };
+    const leads = results.map((row) => this.toSummary(row, byId));
+    const counts = new Map<string, number>();
+    for (const lead of leads) if (lead.origin) counts.set(lead.origin, (counts.get(lead.origin) ?? 0) + 1);
+    const origins = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b));
+    return { stages, leads, origins };
+  }
+
+  /** Matches an origin to one already in use, ignoring case, so the same channel is not counted under two spellings. */
+  private async canonicalOrigin(value: string | null | undefined, exceptLeadId = ""): Promise<string | null> {
+    const origin = value?.trim();
+    if (!origin) return null;
+    const existing = await this.db
+      .prepare("SELECT origin FROM leads WHERE archived_at IS NULL AND id != ?1 AND LOWER(origin) = LOWER(?2) LIMIT 1")
+      .bind(exceptLeadId, origin)
+      .first<{ origin: string }>();
+    return existing?.origin ?? origin;
   }
 
   /** Finds a lead by id, exact name, or an unambiguous part of its name. */
@@ -333,7 +355,10 @@ export class Store {
       ...this.toSummary(row, stages),
       briefing: (row.briefing as string | null) ?? null,
       briefing_updated_at: (row.briefing_updated_at as string | null) ?? null,
-      contacts: contacts.results.map((c) => ({ ...c, is_primary: Boolean(c.is_primary) })) as unknown as Contact[],
+      contacts: contacts.results.map((c) => ({
+        ...c,
+        is_primary: Boolean(c.is_primary),
+      })) as unknown as Contact[],
       notes: notes.results as unknown as Note[],
       history: history.results as unknown as Transition[],
     };
@@ -341,7 +366,11 @@ export class Store {
 
   async createLead(
     fields: LeadFields & { name: string },
-    options: { stage?: string; created_at?: string; contacts?: (ContactFields & { name: string })[] } = {},
+    options: {
+      stage?: string;
+      created_at?: string;
+      contacts?: (ContactFields & { name: string })[];
+    } = {},
   ): Promise<LeadDetail> {
     const name = fields.name.trim();
     if (!name) throw new UserError("A lead needs a name.");
@@ -358,9 +387,9 @@ export class Store {
       this.db
         .prepare(
           `INSERT INTO leads (id, name, website, summary, stage_id, stage_entered_at, next_action, next_action_due,
-            priority, follow_up_on, last_contact_at, check_in_days, headcount, annual_revenue_usd, location, industry,
-            fit, certifications, data_stack, briefing, briefing_updated_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            priority, follow_up_on, last_contact_at, check_in_days, origin, origin_detail, headcount, annual_revenue_usd,
+            location, industry, fit, certifications, data_stack, briefing, briefing_updated_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           id,
@@ -375,6 +404,8 @@ export class Store {
           fields.follow_up_on ?? null,
           fields.last_contact_at ? normaliseTimestamp(fields.last_contact_at, "last_contact_at") : null,
           fields.check_in_days ?? null,
+          await this.canonicalOrigin(fields.origin),
+          fields.origin_detail ?? null,
           fields.headcount ?? null,
           fields.annual_revenue_usd ?? null,
           fields.location ?? null,
@@ -388,7 +419,9 @@ export class Store {
           nowIso(),
         ),
       this.db
-        .prepare("INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at) VALUES (?, ?, NULL, ?, ?)")
+        .prepare(
+          "INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at) VALUES (?, ?, NULL, ?, ?)",
+        )
         .bind(newId(), id, stage.id, at),
       ...(options.contacts ?? []).map((contact, index) => this.insertContact(id, contact, index)),
     ];
@@ -404,6 +437,7 @@ export class Store {
       let value = fields[column];
       if (value === undefined) continue;
       if (column === "last_contact_at" && value) value = normaliseTimestamp(String(value), "last_contact_at");
+      if (column === "origin") value = await this.canonicalOrigin(value as string | null, id);
       sets.push(`${column} = ?`);
       values.push(Array.isArray(value) ? JSON.stringify(value) : value);
     }
@@ -433,7 +467,9 @@ export class Store {
     if (current.stage_id !== stage.id) {
       const at = normaliseTimestamp(options.at, "at");
       if (at < current.stage_entered_at) {
-        throw new UserError(`That move is dated before the lead entered its current stage (${current.stage_entered_at}).`);
+        throw new UserError(
+          `That move is dated before the lead entered its current stage (${current.stage_entered_at}).`,
+        );
       }
       // The old next action belonged to the old stage, so it is cleared unless a new one is given.
       statements.push(
@@ -451,7 +487,9 @@ export class Store {
             id,
           ),
         this.db
-          .prepare("INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at, note) VALUES (?, ?, ?, ?, ?, ?)")
+          .prepare(
+            "INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at, note) VALUES (?, ?, ?, ?, ?, ?)",
+          )
           .bind(newId(), id, current.stage_id, stage.id, at, options.note ?? null),
       );
     } else {
@@ -501,7 +539,11 @@ export class Store {
    */
   async logContact(
     ref: string,
-    options: { at?: string; kind?: Exclude<NoteKind, "note">; summary?: string } = {},
+    options: {
+      at?: string;
+      kind?: Exclude<NoteKind, "note">;
+      summary?: string;
+    } = {},
   ): Promise<LeadDetail> {
     const leadId = await this.resolveLeadId(ref);
     const at = normaliseTimestamp(options.at, "at");
@@ -514,7 +556,9 @@ export class Store {
       if (!existing) await this.addNote(leadId, options.summary, kind, at);
     } else {
       await this.db
-        .prepare("UPDATE leads SET updated_at = ?1, last_contact_at = MAX(COALESCE(last_contact_at, ''), ?2) WHERE id = ?3")
+        .prepare(
+          "UPDATE leads SET updated_at = ?1, last_contact_at = MAX(COALESCE(last_contact_at, ''), ?2) WHERE id = ?3",
+        )
         .bind(nowIso(), at, leadId)
         .run();
     }
@@ -596,7 +640,10 @@ export class Store {
          WHERE l.archived_at IS NULL ORDER BY l.name, c.is_primary DESC, c.created_at`,
       )
       .all<Row>();
-    return results.map((row) => ({ ...row, is_primary: Boolean(row.is_primary) }));
+    return results.map((row) => ({
+      ...row,
+      is_primary: Boolean(row.is_primary),
+    }));
   }
 
   async deleteContact(contactId: string): Promise<void> {
@@ -609,7 +656,12 @@ export class Store {
   async getFocus(): Promise<LeadSummary[]> {
     const { stages, leads } = await this.getPipeline();
     const position = new Map(stages.map((s) => [s.id, s]));
-    const urgency = { due: 0, "follow-up": 1, "check-in": 2, stale: 3 } as const;
+    const urgency = {
+      due: 0,
+      "follow-up": 1,
+      "check-in": 2,
+      stale: 3,
+    } as const;
     return leads
       .filter((lead) => {
         const kind = position.get(lead.stage_id)?.kind;
@@ -637,7 +689,7 @@ export class Store {
     for (const id of wonIds) progress.set(id, active.length);
 
     const [leadRows, transitionRows] = await this.db.batch<Row>([
-      this.db.prepare("SELECT id, stage_id FROM leads WHERE archived_at IS NULL"),
+      this.db.prepare("SELECT id, stage_id, origin FROM leads WHERE archived_at IS NULL"),
       this.db.prepare(
         "SELECT t.lead_id, t.to_stage_id, t.at FROM stage_transitions t JOIN leads l ON l.id = t.lead_id WHERE l.archived_at IS NULL ORDER BY t.lead_id, t.at",
       ),
@@ -655,6 +707,7 @@ export class Store {
     const stints = new Map<string, number[]>();
     const daysToWin: number[] = [];
     const kindOf = new Map(stages.map((s) => [s.id, s.kind]));
+    const byOrigin = new Map<string | null, OriginFunnel>();
     let lost = 0;
     let dormant = 0;
 
@@ -673,6 +726,20 @@ export class Store {
       for (let i = 0; i <= furthest; i++) reached[i]++;
 
       const currentKind = kindOf.get(String(lead.stage_id));
+      const origin = (lead.origin as string | null) || null;
+      const group = byOrigin.get(origin) ?? {
+        origin,
+        leads: 0,
+        reached: new Array<number>(active.length).fill(0),
+        won: 0,
+        lost: 0,
+      };
+      byOrigin.set(origin, group);
+      group.leads++;
+      for (let i = 0; i <= Math.min(furthest, active.length - 1); i++) group.reached[i]++;
+      if (furthest === active.length) group.won++;
+      if (currentKind === "lost") group.lost++;
+
       if (currentKind === "lost") lost++;
       if (currentKind === "dormant") dormant++;
       if (currentKind === "active" && progress.get(String(lead.stage_id)) === furthest) open[furthest]++;
@@ -698,6 +765,10 @@ export class Store {
     const overall = rates.length && rates.every((r) => r !== null) ? rates.reduce((a, r) => a * r!, 1) : null;
     return {
       stages: funnelStages,
+      // Unattributed leads go last, whatever their number.
+      origins: [...byOrigin.values()].sort(
+        (a, b) => Number(a.origin === null) - Number(b.origin === null) || b.leads - a.leads || b.won - a.won,
+      ),
       total_leads: leadRows.results.length,
       won: reached[active.length],
       lost,

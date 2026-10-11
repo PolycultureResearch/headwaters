@@ -26,6 +26,8 @@ Stages are rows in the database, not code. Each has a name, a kind (pipeline ste
 
 Every lead also tracks when it was last in touch. Logging a meeting, call or email note updates it, as does **Contacted today** on the lead. Give a lead a check-in interval (say 90 days) and it shows up as due for a check-in that long after the last contact, whatever stage it is in.
 
+Each lead has an origin: where it came from, as a short channel such as "Community" or "Own research", plus a detail line for the specifics. The funnel view splits the pipeline by origin, to show which sources of leads go furthest.
+
 Sign-in is a single password, for a single user.
 
 ## Run it locally
@@ -73,10 +75,10 @@ Then try:
 
 | Tool | What it does |
 | --- | --- |
-| `get_pipeline` | Stages and the leads in them, optionally filtered |
+| `get_pipeline` | Stages and the leads in them, optionally filtered, plus the lead origins in use |
 | `get_lead` | One lead in full: fields, briefing, contacts, notes, history |
 | `get_focus` | Leads that need work, most pressing first |
-| `get_funnel` | Conversion rate and median days per stage, and leads per win |
+| `get_funnel` | Conversion rate and median days per stage, leads per win, and the funnel split by lead origin |
 | `create_lead` | Add a company, with briefing, attributes and contacts in one call |
 | `update_lead` | Change fields on a lead |
 | `move_lead` | Move a lead to another stage and record why |
