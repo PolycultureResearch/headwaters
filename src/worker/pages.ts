@@ -36,13 +36,27 @@ const PAGE_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store",
   "X-Frame-Options": "DENY",
-  "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
 };
 
-export function page(title: string, body: string, status = 200, extra?: Headers): Response {
+/** `formTargets` are extra places a form on this page may end up, on top of this site itself. */
+export function page(title: string, body: string, status = 200, extra?: Headers, formTargets: string[] = []): Response {
   const headers = new Headers(extra);
   for (const [key, value] of Object.entries(PAGE_HEADERS)) headers.set(key, value);
+  headers.set(
+    "Content-Security-Policy",
+    `default-src 'none'; style-src 'unsafe-inline'; form-action ${["'self'", ...formTargets].join(" ")}; frame-ancestors 'none'`,
+  );
   return new Response(shell(title, body), { status, headers });
+}
+
+/** The CSP source for where an OAuth redirect URI points: its origin, or its scheme for a native app. */
+function redirectSource(redirectUri: string): string[] {
+  try {
+    const url = new URL(redirectUri);
+    return [url.origin === "null" ? url.protocol : url.origin];
+  } catch {
+    return [];
+  }
 }
 
 export function loginPage(next: string, error?: string, status = 200): Response {
@@ -79,6 +93,9 @@ ${details.redirectIsLoopback ? '<p class="warn">This sends access to an app on y
 </form>`,
     200,
     headers,
+    // Browsers apply form-action to the redirect that follows a submit, and Allow ends in a
+    // redirect back to the client. Without this the approval is silently dropped.
+    redirectSource(details.redirectUri),
   );
 }
 
