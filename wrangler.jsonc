@@ -6,6 +6,9 @@
   // global_fetch_strictly_public lets the OAuth layer fetch client metadata documents safely.
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "observability": { "enabled": true },
+  // Served from the custom domain only; the account has no workers.dev subdomain.
+  "workers_dev": false,
+  "routes": [{ "pattern": "headwaters.polyculture.net", "custom_domain": true }],
   "assets": {
     "not_found_handling": "single-page-application",
     // Everything that needs the Worker (API, MCP, OAuth, login) runs before static assets.
@@ -24,17 +27,15 @@
     {
       "binding": "DB",
       "database_name": "headwaters",
-      // Replace with the id printed by `npx wrangler d1 create headwaters`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "0ec40209-4335-4e8b-b543-1c2699453ccf",
       "migrations_dir": "migrations"
     }
   ],
   "kv_namespaces": [
     {
       // OAuth grants and tokens for MCP clients, plus login throttling.
-      // Replace with the id printed by `npx wrangler kv namespace create OAUTH_KV`.
       "binding": "OAUTH_KV",
-      "id": "00000000000000000000000000000000"
+      "id": "2d4fe40b287b467d91b8f49fbd7405c6"
     }
   ]
 }
