@@ -4,6 +4,7 @@ import type {
   Fit,
   Funnel,
   FunnelStage,
+  HeatLevel,
   LeadDetail,
   LeadSummary,
   Note,
@@ -134,6 +135,16 @@ function normaliseTimestamp(value: string | undefined, label: string): string {
 
 type Row = Record<string, unknown>;
 
+// What goes into a lead's heat, out of 100: how good a fit it is, the priority set by hand,
+// how far along the pipeline it is, and whether something about it is due.
+const HEAT_FIT: Record<string, number> = { strong: 30, good: 20, unclear: 10, weak: 0 };
+const HEAT_FIT_UNKNOWN = 10;
+const HEAT_PRIORITY: Record<number, number> = { 1: 25, 2: 12, 3: 0 };
+const HEAT_PROGRESS = 20;
+const HEAT_ATTENTION = { due: 25, "follow-up": 20, "check-in": 15, stale: 10 } as const;
+
+const heatLevel = (heat: number): HeatLevel => (heat >= 70 ? "hot" : heat >= 50 ? "warm" : heat >= 30 ? "mild" : "cool");
+
 export class Store {
   /** `actorId` is the signed-in user, recorded against the notes and stage moves they make. */
   constructor(
@@ -261,6 +272,19 @@ export class Store {
     else if (checkInDue && checkInDue <= today()) attention = "check-in";
     else if (!resting && stage?.stale_after_days != null && daysInStage > stage.stale_after_days) attention = "stale";
 
+    let heat: number | null = null;
+    if (!resting) {
+      const active = [...stages.values()].filter((s) => s.kind === "active").sort((a, b) => a.position - b.position);
+      const step = active.findIndex((s) => s.id === stage?.id);
+      const progress = step > 0 ? (step / (active.length - 1)) * HEAT_PROGRESS : 0;
+      heat = Math.round(
+        (HEAT_FIT[String(row.fit)] ?? HEAT_FIT_UNKNOWN) +
+          (HEAT_PRIORITY[Number(row.priority)] ?? 0) +
+          progress +
+          (attention ? HEAT_ATTENTION[attention] : 0),
+      );
+    }
+
     const nextAction = (row.next_action as string | null) ?? null;
     return {
       id: String(row.id),
@@ -290,6 +314,8 @@ export class Store {
       data_stack: parseList(row.data_stack),
       primary_contact: (row.primary_contact as string | null) ?? null,
       attention,
+      heat,
+      heat_level: heat === null ? null : heatLevel(heat),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
     };
@@ -307,7 +333,8 @@ export class Store {
     const { results } = await this.db
       .prepare(`${Store.SUMMARY_SQL} WHERE l.archived_at IS NULL ORDER BY l.priority, l.stage_entered_at`)
       .all<Row>();
-    const leads = results.map((row) => this.toSummary(row, byId));
+    // Hottest first, so each column of the board reads top-down in the order to work it.
+    const leads = results.map((row) => this.toSummary(row, byId)).sort((a, b) => (b.heat ?? -1) - (a.heat ?? -1));
     const counts = new Map<string, number>();
     for (const lead of leads) if (lead.origin) counts.set(lead.origin, (counts.get(lead.origin) ?? 0) + 1);
     const origins = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b));

@@ -93,7 +93,8 @@ function Card({ lead, stage, dragging, onOpen, onDragStart, onDragEnd }: CardPro
   const resting = stage.kind === "won" || stage.kind === "lost";
   return (
     <button
-      className={`card${dragging ? " dragging" : ""}${lead.priority === 1 ? " high" : ""}${lead.priority === 3 ? " low" : ""}`}
+      className={`card${dragging ? " dragging" : ""}${lead.heat_level ? ` heat-${lead.heat_level}` : ""}${lead.priority === 3 ? " low" : ""}`}
+      title={lead.heat === null ? undefined : `Heat ${lead.heat} of 100`}
       draggable
       onClick={onOpen}
       onDragStart={(e) => {

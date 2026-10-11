@@ -12,6 +12,8 @@ export interface Stage {
   stale_after_days: number | null;
 }
 
+export type HeatLevel = "hot" | "warm" | "mild" | "cool";
+
 export type Attention = "due" | "follow-up" | "check-in" | "stale" | null;
 
 export interface LeadSummary {
@@ -46,6 +48,10 @@ export interface LeadSummary {
   data_stack: string[];
   primary_contact: string | null;
   attention: Attention;
+  // 0 to 100: how much this lead deserves attention now, from fit, priority, how far along it is and
+  // whether something is due. Null for won and lost leads.
+  heat: number | null;
+  heat_level: HeatLevel | null;
   created_at: string;
   updated_at: string;
 }

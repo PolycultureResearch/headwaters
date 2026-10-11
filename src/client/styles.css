@@ -13,6 +13,10 @@
   --accent-ink: #0d100f;
   --amber: #dfb469;
   --coral: #ea8f80;
+  --heat-hot: #ee6a52;
+  --heat-warm: #ec9a4c;
+  --heat-mild: #d8c466;
+  --heat-cool: #4f7f96;
   --radius: 8px;
 }
 
@@ -358,8 +362,46 @@ textarea {
   opacity: 0.4;
 }
 
-.card.high {
-  box-shadow: inset 2px 0 0 var(--accent);
+/* Heat: warmer colours for the leads most worth attention now. */
+.heat-hot {
+  --heat: var(--heat-hot);
+}
+
+.heat-warm {
+  --heat: var(--heat-warm);
+}
+
+.heat-mild {
+  --heat: var(--heat-mild);
+}
+
+.heat-cool {
+  --heat: var(--heat-cool);
+}
+
+.card[class*="heat-"] {
+  box-shadow: inset 3px 0 0 var(--heat);
+  background: color-mix(in srgb, var(--heat) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--heat) 22%, var(--line));
+}
+
+.card[class*="heat-"]:hover {
+  background: color-mix(in srgb, var(--heat) 12%, var(--raised));
+  border-color: color-mix(in srgb, var(--heat) 40%, var(--line-strong));
+}
+
+.card.heat-cool {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.heat-chip {
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--heat);
+  border: 1px solid color-mix(in srgb, var(--heat) 45%, transparent);
 }
 
 .card.low .card-name {

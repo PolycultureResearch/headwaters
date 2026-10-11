@@ -115,6 +115,14 @@ export function LeadPanel({ leadId, stages, origins, version, onClose, onChanged
           {[lead.location, lead.industry].filter(Boolean).map((value) => (
             <span key={value}>{value}</span>
           ))}
+          {lead.heat !== null && (
+            <span
+              className={`heat-chip heat-${lead.heat_level}`}
+              title="Out of 100: fit (up to 30), priority (25), how far along the pipeline (20) and whether something is due (25)"
+            >
+              Heat {lead.heat}
+            </span>
+          )}
         </div>
 
         <section className="forward">

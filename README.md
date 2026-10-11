@@ -26,6 +26,8 @@ Stages are rows in the database, not code. Each has a name, a kind (pipeline ste
 
 Every lead also tracks when it was last in touch. Logging a meeting, call or email note updates it, as does **Contacted today** on the lead. Give a lead a check-in interval (say 90 days) and it shows up as due for a check-in that long after the last contact, whatever stage it is in.
 
+Cards are colour coded by heat, a score from 0 to 100 for how much a lead deserves attention now: fit (up to 30), priority (25), how far along the pipeline it is (20) and whether something is due (25). Hot leads are red, then orange, yellow and blue, and each column lists the hottest first. Won and lost leads have no heat.
+
 Each lead has an origin: where it came from, as a short channel such as "Community" or "Own research", plus a detail line for the specifics. The funnel view splits the pipeline by origin, to show which sources of leads go furthest.
 
 Sign-in is by account. The owner signs in with the `ADMIN_PASSWORD` secret (email left blank, or their own once set under **People**). The owner invites anyone else from **People**: Headwaters gives a one-time link, valid for 7 days, that the person uses to set their own password. Everyone invited can see and manage the whole pipeline; only the owner can add or remove people. Notes and stage moves record who made them. Removing someone signs them out and cuts off any Claude connection they made. Headwaters sends no email, so a forgotten password is fixed by the owner issuing a new link.
