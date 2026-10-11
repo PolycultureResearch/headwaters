@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LeadSummary, Pipeline } from "../shared/types";
+import type { LeadSummary, Pipeline, User } from "../shared/types";
 import { api } from "./api";
 import { Board } from "./Board";
 import { Focus } from "./Focus";
 import { FunnelView } from "./Funnel";
 import { LeadPanel } from "./LeadPanel";
+import { People } from "./People";
 import { StageSettings } from "./StageSettings";
 
 type View = "board" | "focus" | "funnel";
@@ -35,6 +36,8 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [editingStages, setEditingStages] = useState(false);
+  const [editingPeople, setEditingPeople] = useState(false);
+  const [me, setMe] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Bumped after every change so views that load their own data know to reload.
   const [version, setVersion] = useState(0);
@@ -59,6 +62,10 @@ export function App() {
       window.removeEventListener("focus", onVisible);
     };
   }, [refresh]);
+
+  useEffect(() => {
+    api.me().then(setMe, () => setMe(null));
+  }, []);
 
   useEffect(() => {
     if (!error) return;
@@ -139,8 +146,16 @@ export function App() {
         <button className="ghost" onClick={() => setEditingStages(true)}>
           Stages
         </button>
+        {me?.role === "owner" && (
+          <button className="ghost" onClick={() => setEditingPeople(true)}>
+            People
+          </button>
+        )}
         <button className="primary" onClick={() => addLead(pipeline.stages[0].id)}>
           Add lead
+        </button>
+        <button className="ghost" title={me ? `Signed in as ${me.name}` : undefined} onClick={api.signOut}>
+          Sign out
         </button>
       </header>
 
@@ -172,6 +187,7 @@ export function App() {
           act={act}
         />
       )}
+      {editingPeople && <People onClose={() => setEditingPeople(false)} onError={setError} />}
       {error && (
         <div className="toast" role="alert">
           {error}

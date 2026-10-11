@@ -2,10 +2,15 @@ import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import { createMcpHandler } from "agents/mcp/server";
 import { app } from "./app";
 import { createServer } from "./mcp";
+import { Users } from "./users";
 
 const mcpHandler = {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    return createMcpHandler(() => createServer(env), {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    // The connection belongs to whoever approved it, and stops working when they are removed.
+    const { userId } = (ctx as ExecutionContext & { props?: { userId?: string } }).props ?? {};
+    const user = userId ? await new Users(env.DB).get(userId) : null;
+    if (!user) return Response.json({ error: "This connection's user no longer has access." }, { status: 401 });
+    return createMcpHandler(() => createServer(env, user.id), {
       route: "/mcp",
       // A custom domain is not covered by the handler's built-in localhost and workers.dev allowance.
       allowedHostnames: [new URL(request.url).hostname],

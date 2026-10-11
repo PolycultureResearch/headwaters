@@ -1,4 +1,4 @@
-import type { Funnel, LeadDetail, LeadSummary, Note, Pipeline, Stage } from "../shared/types";
+import type { Funnel, Invite, LeadDetail, LeadSummary, Note, Pipeline, Stage, User } from "../shared/types";
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -71,4 +71,15 @@ export const api = {
   updateStage: (id: string, patch: StagePatch) => request<Stage>("PATCH", `/stages/${id}`, patch),
   reorderStages: (order: string[]) => request<Stage[]>("PUT", "/stages/order", { order }),
   archiveStage: (id: string) => request<void>("DELETE", `/stages/${id}`),
+  me: () => request<User>("GET", "/me"),
+  users: () => request<User[]>("GET", "/users"),
+  createUser: (name: string, email: string) => request<Invite>("POST", "/users", { name, email }),
+  renewInvite: (id: string) => request<Invite>("POST", `/users/${id}/invite`, {}),
+  updateUser: (id: string, patch: { name?: string; email?: string | null }) =>
+    request<User>("PATCH", `/users/${id}`, patch),
+  removeUser: (id: string) => request<void>("DELETE", `/users/${id}`),
+  signOut: async () => {
+    await fetch("/logout", { method: "POST", redirect: "manual" });
+    window.location.href = "/login";
+  },
 };

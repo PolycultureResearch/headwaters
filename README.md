@@ -28,7 +28,7 @@ Every lead also tracks when it was last in touch. Logging a meeting, call or ema
 
 Each lead has an origin: where it came from, as a short channel such as "Community" or "Own research", plus a detail line for the specifics. The funnel view splits the pipeline by origin, to show which sources of leads go furthest.
 
-Sign-in is a single password, for a single user.
+Sign-in is by account. The owner signs in with the `ADMIN_PASSWORD` secret (email left blank, or their own once set under **People**). The owner invites anyone else from **People**: Headwaters gives a one-time link, valid for 7 days, that the person uses to set their own password. Everyone invited can see and manage the whole pipeline; only the owner can add or remove people. Notes and stage moves record who made them. Removing someone signs them out and cuts off any Claude connection they made. Headwaters sends no email, so a forgotten password is fixed by the owner issuing a new link.
 
 ## Run it locally
 
@@ -39,7 +39,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-Open http://localhost:5173 and sign in with the password from `.dev.vars`.
+Open http://localhost:5173 and sign in with the password from `.dev.vars`, leaving the email blank.
 
 ## Deploy to Cloudflare
 
@@ -48,7 +48,7 @@ npx wrangler login
 npx wrangler d1 create headwaters             # copy the database_id into wrangler.jsonc
 npx wrangler kv namespace create OAUTH_KV     # copy the id into wrangler.jsonc
 npm run db:migrate
-npx wrangler secret put ADMIN_PASSWORD        # a long password; it guards all your pipeline data
+npx wrangler secret put ADMIN_PASSWORD        # the owner's password; make it long, it guards all your pipeline data
 npx wrangler secret put SESSION_SECRET        # any long random string, e.g. from `openssl rand -hex 32`
 npm run deploy
 ```

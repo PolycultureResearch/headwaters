@@ -68,6 +68,8 @@ export interface Note {
   kind: NoteKind;
   body: string;
   created_at: string;
+  // Name of whoever wrote it, when known.
+  author: string | null;
 }
 
 export interface Transition {
@@ -76,6 +78,8 @@ export interface Transition {
   to_stage_id: string;
   at: string;
   note: string | null;
+  // Name of whoever made the move, when known.
+  actor: string | null;
 }
 
 export interface LeadDetail extends LeadSummary {
@@ -129,4 +133,20 @@ export interface Funnel {
   overall_conversion: number | null;
   leads_per_win: number | null;
   median_days_to_win: number | null;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string | null;
+  role: "owner" | "member";
+  // invited: has a live link and no password yet. expired: the link ran out before they used it.
+  status: "active" | "invited" | "expired";
+  invite_expires_at: string | null;
+}
+
+/** A person together with the one-time link to send them. The link is shown once and never stored. */
+export interface Invite {
+  user: User;
+  invite_url: string;
 }

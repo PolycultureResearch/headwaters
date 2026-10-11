@@ -319,6 +319,7 @@ export function LeadPanel({ leadId, stages, origins, version, onClose, onChanged
                   <span className="muted">
                     {formatDate(step.at)} · {formatDays(days)}
                     {next ? "" : " so far"}
+                    {step.actor && ` · ${step.actor}`}
                   </span>
                   {step.note && <span className="history-note">{step.note}</span>}
                 </li>
@@ -560,6 +561,7 @@ function Notes({ lead, apply }: { lead: LeadDetail; apply: Apply }) {
               <span className="muted">
                 {formatDate(note.created_at)}
                 {note.kind !== "note" && ` · ${note.kind}`}
+                {note.author && ` · ${note.author}`}
               </span>
               <button
                 className="ghost small"

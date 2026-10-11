@@ -20,7 +20,7 @@ const shell = (title: string, body: string) => `<!doctype html>
   p.warn { color: #e0b46a; }
   p.error { color: #e88a7d; }
   strong { color: #e6ebe8; font-weight: 600; }
-  input[type=password] { width: 100%; box-sizing: border-box; padding: 10px 12px; margin-bottom: 12px; font: inherit;
+  input[type=password], input[type=email] { width: 100%; box-sizing: border-box; padding: 10px 12px; margin-bottom: 12px; font: inherit;
     color: inherit; background: #161a18; border: 1px solid #2a312e; border-radius: 8px; }
   input:focus-visible, button:focus-visible { outline: 2px solid #5fb39a; outline-offset: 2px; }
   .actions { display: flex; gap: 8px; }
@@ -36,6 +36,8 @@ const PAGE_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store",
   "X-Frame-Options": "DENY",
+  // Invite links carry their secret in the URL.
+  "Referrer-Policy": "no-referrer",
 };
 
 /** `formTargets` are extra places a form on this page may end up, on top of this site itself. */
@@ -67,8 +69,25 @@ export function loginPage(next: string, error?: string, status = 200): Response 
 ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
 <form method="post" action="/login">
   <input type="hidden" name="next" value="${escapeHtml(next)}">
-  <input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required>
+  <input type="email" name="email" placeholder="Email" autocomplete="username" autofocus>
+  <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
   <div class="actions"><button class="primary">Sign in</button></div>
+</form>`,
+    status,
+  );
+}
+
+export function invitePage(token: string, name: string, email: string, minLength: number, error?: string, status = 200): Response {
+  return page(
+    "Join Headwaters",
+    `<h1>Welcome, ${escapeHtml(name)}</h1>
+<p>Choose a password for Headwaters. You will sign in with <strong>${escapeHtml(email)}</strong>.</p>
+${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+<form method="post" action="/invite/${escapeHtml(token)}">
+  <input type="email" name="email" value="${escapeHtml(email)}" autocomplete="username" readonly hidden>
+  <input type="password" name="password" placeholder="Password, at least ${minLength} characters" autocomplete="new-password" minlength="${minLength}" autofocus required>
+  <input type="password" name="confirm" placeholder="Password again" autocomplete="new-password" required>
+  <div class="actions"><button class="primary">Set password and sign in</button></div>
 </form>`,
     status,
   );

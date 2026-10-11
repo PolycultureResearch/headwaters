@@ -130,6 +130,10 @@ export const createStageInput = z.object({
 export const updateStageInput = z.object(partial(stageFields));
 export const reorderStagesInput = z.object({ order: z.array(z.string()).min(1) });
 
+const email = z.email().trim().max(200);
+export const createUserInput = z.object({ name: text(100).min(1), email });
+export const updateUserInput = z.object({ name: text(100).min(1).optional(), email: email.nullable().optional() });
+
 function partial<T extends Record<string, z.ZodType>>(shape: T): { [K in keyof T]: z.ZodOptional<T[K]> } {
   return Object.fromEntries(Object.entries(shape).map(([key, value]) => [key, value.optional()])) as {
     [K in keyof T]: z.ZodOptional<T[K]>;

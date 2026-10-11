@@ -2,12 +2,13 @@
 import { AuthorizationError, CimdFetchError, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
 import { ZodError } from "zod";
-import { checkPassword, clearSessionCookie, hasSession, safeNext, sessionCookie } from "./auth";
-import { consentPage, loginPage, messagePage } from "./pages";
+import { clearSessionCookie, currentUser, safeNext, sessionCookie, signIn } from "./auth";
+import { consentPage, invitePage, loginPage, messagePage } from "./pages";
 import {
   createContactInput,
   createLeadInput,
   createStageInput,
+  createUserInput,
   logContactInput,
   moveLeadInput,
   noteInput,
@@ -15,12 +16,12 @@ import {
   updateContactInput,
   updateLeadInput,
   updateStageInput,
+  updateUserInput,
 } from "./schemas";
 import { Store, UserError } from "./store";
+import { MIN_PASSWORD_LENGTH, toUser, Users, type UserRecord } from "./users";
 
-type AppEnv = { Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers }; Variables: { store: Store } };
-
-const USER_ID = "owner";
+type AppEnv = { Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers }; Variables: { store: Store; user: UserRecord } };
 
 export const app = new Hono<AppEnv>();
 
@@ -39,19 +40,49 @@ app.onError((error, c) => {
 
 app.get("/login", async (c) => {
   const next = safeNext(c.req.query("next"));
-  if (await hasSession(c.req.raw, c.env)) return c.redirect(next);
+  if (await currentUser(c.req.raw, c.env)) return c.redirect(next);
   return loginPage(next);
 });
 
 app.post("/login", async (c) => {
   const form = await c.req.formData();
   const next = safeNext(String(form.get("next") ?? ""));
-  const result = await checkPassword(c.req.raw, c.env, String(form.get("password") ?? ""));
-  if (result === "locked") return loginPage(next, "Too many attempts. Try again in 15 minutes.", 429);
-  if (result === "wrong") return loginPage(next, "That password is not right.", 401);
+  const result = await signIn(c.req.raw, c.env, String(form.get("email") ?? ""), String(form.get("password") ?? ""));
+  if (result.status === "locked") return loginPage(next, "Too many attempts. Try again in 15 minutes.", 429);
+  if (result.status === "wrong") return loginPage(next, "That email and password do not match.", 401);
   return new Response(null, {
     status: 303,
-    headers: { Location: next, "Set-Cookie": await sessionCookie(c.req.raw, c.env) },
+    headers: { Location: next, "Set-Cookie": await sessionCookie(c.req.raw, c.env, result.user) },
+  });
+});
+
+// ---- accepting an invite ----
+
+const INVITE_GONE = "This link has already been used or has expired. Ask for a new one.";
+
+app.get("/invite/:token", async (c) => {
+  const token = c.req.param("token");
+  const invited = await new Users(c.env.DB).findInvite(token);
+  if (!invited) return messagePage("Invite not valid", INVITE_GONE, 404);
+  return invitePage(token, invited.name, invited.email ?? "", MIN_PASSWORD_LENGTH);
+});
+
+app.post("/invite/:token", async (c) => {
+  const token = c.req.param("token");
+  const users = new Users(c.env.DB);
+  const invited = await users.findInvite(token);
+  if (!invited) return messagePage("Invite not valid", INVITE_GONE, 404);
+  const form = await c.req.formData();
+  const password = String(form.get("password") ?? "");
+  const retry = (message: string) => invitePage(token, invited.name, invited.email ?? "", MIN_PASSWORD_LENGTH, message, 400);
+  if (password.length < MIN_PASSWORD_LENGTH) return retry(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+  if (password.length > 200) return retry("That password is too long.");
+  if (password !== String(form.get("confirm") ?? "")) return retry("The two passwords do not match.");
+  const user = await users.acceptInvite(token, password);
+  if (!user) return messagePage("Invite not valid", INVITE_GONE, 404);
+  return new Response(null, {
+    status: 303,
+    headers: { Location: "/", "Set-Cookie": await sessionCookie(c.req.raw, c.env, user) },
   });
 });
 
@@ -66,7 +97,7 @@ app.on(["GET", "POST"], "/authorize", async (c) => {
   try {
     if (c.req.method === "GET") {
       const request = await oauth.parseAuthRequest(c.req.raw);
-      if (!(await hasSession(c.req.raw, c.env))) {
+      if (!(await currentUser(c.req.raw, c.env))) {
         const url = new URL(c.req.url);
         return c.redirect(`/login?next=${encodeURIComponent(url.pathname + url.search)}`);
       }
@@ -75,7 +106,8 @@ app.on(["GET", "POST"], "/authorize", async (c) => {
       return consentPage(details, consent.handle, consent.headers);
     }
 
-    if (!(await hasSession(c.req.raw, c.env))) return messagePage("Signed out", "Sign in and start connecting again.", 401);
+    const user = await currentUser(c.req.raw, c.env);
+    if (!user) return messagePage("Signed out", "Sign in and start connecting again.", 401);
     const form = await c.req.formData();
     const handle = String(form.get("handle") ?? "");
     if (form.get("decision") !== "approve") {
@@ -85,10 +117,10 @@ app.on(["GET", "POST"], "/authorize", async (c) => {
     const approved = await oauth.approveConsent(c.req.raw, handle);
     const { redirectTo } = await oauth.completeAuthorization({
       request: approved.request,
-      userId: USER_ID,
+      userId: user.id,
       metadata: {},
       scope: approved.request.scope,
-      props: { userId: USER_ID },
+      props: { userId: user.id },
     });
     approved.headers.set("Location", redirectTo);
     return new Response(null, { status: 302, headers: approved.headers });
@@ -105,12 +137,14 @@ app.on(["GET", "POST"], "/authorize", async (c) => {
 const api = new Hono<AppEnv>();
 
 api.use("*", async (c, next) => {
-  if (!(await hasSession(c.req.raw, c.env))) return c.json({ error: "Not signed in." }, 401);
+  const user = await currentUser(c.req.raw, c.env);
+  if (!user) return c.json({ error: "Not signed in." }, 401);
   // Changes must come from this site's own pages, not a form or script on another one.
   if (c.req.method !== "GET" && c.req.header("Origin") !== new URL(c.req.url).origin) {
     return c.json({ error: "Cross-site request refused." }, 403);
   }
-  c.set("store", new Store(c.env.DB));
+  c.set("user", user);
+  c.set("store", new Store(c.env.DB, user.id));
   await next();
 });
 
@@ -170,6 +204,45 @@ api.patch("/stages/:id", async (c) =>
 );
 api.delete("/stages/:id", async (c) => {
   await c.var.store.archiveStage(c.req.param("id"));
+  return c.body(null, 204);
+});
+
+// ---- people ----
+
+api.get("/me", (c) => c.json(toUser(c.var.user)));
+
+for (const path of ["/users", "/users/*"]) {
+  api.use(path, async (c, next) => {
+    if (c.var.user.role !== "owner") return c.json({ error: "Only the owner can manage people." }, 403);
+    await next();
+  });
+}
+
+const inviteUrl = (requestUrl: string, token: string) => `${new URL(requestUrl).origin}/invite/${token}`;
+
+api.get("/users", async (c) => c.json(await new Users(c.env.DB).list()));
+api.post("/users", async (c) => {
+  const { name, email } = createUserInput.parse(await c.req.json());
+  const { user, token } = await new Users(c.env.DB).create(name, email);
+  return c.json({ user, invite_url: inviteUrl(c.req.url, token) }, 201);
+});
+api.post("/users/:id/invite", async (c) => {
+  const { user, token } = await new Users(c.env.DB).renewInvite(c.req.param("id"));
+  return c.json({ user, invite_url: inviteUrl(c.req.url, token) });
+});
+api.patch("/users/:id", async (c) =>
+  c.json(await new Users(c.env.DB).update(c.req.param("id"), updateUserInput.parse(await c.req.json()))),
+);
+api.delete("/users/:id", async (c) => {
+  const id = c.req.param("id");
+  await new Users(c.env.DB).remove(id);
+  // Access is already gone (the MCP handler checks the user on every call); this tidies up their connections.
+  try {
+    const { items } = await c.env.OAUTH_PROVIDER.listUserGrants(id);
+    await Promise.all(items.map((grant) => c.env.OAUTH_PROVIDER.revokeGrant(grant.id, id)));
+  } catch (error) {
+    console.error("Could not revoke grants for removed user", error);
+  }
   return c.body(null, 204);
 });
 

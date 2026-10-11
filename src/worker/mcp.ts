@@ -57,8 +57,9 @@ async function detail(store: Store, value: LeadDetail) {
   return { ...value, stage: stage?.name, stage_exit_criteria: stage?.exit_criteria ?? null };
 }
 
-export function createServer(env: Env): McpServer {
-  const store = new Store(env.DB);
+/** `userId` is whoever approved this connection; what the assistant does is recorded as theirs. */
+export function createServer(env: Env, userId: string): McpServer {
+  const store = new Store(env.DB, userId);
   const server = new McpServer({ name: "headwaters", version: "0.1.0" }, { instructions: INSTRUCTIONS });
   const readOnly = { readOnlyHint: true };
 

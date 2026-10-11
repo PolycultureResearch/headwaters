@@ -135,7 +135,11 @@ function normaliseTimestamp(value: string | undefined, label: string): string {
 type Row = Record<string, unknown>;
 
 export class Store {
-  constructor(private db: D1Database) {}
+  /** `actorId` is the signed-in user, recorded against the notes and stage moves they make. */
+  constructor(
+    private db: D1Database,
+    private actorId: string | null = null,
+  ) {}
 
   // ---- stages ----
 
@@ -345,9 +349,15 @@ export class Store {
     const [lead, contacts, notes, history] = await this.db.batch<Row>([
       this.db.prepare(`${Store.SUMMARY_SQL} WHERE l.id = ?`).bind(id),
       this.db.prepare("SELECT * FROM contacts WHERE lead_id = ? ORDER BY is_primary DESC, created_at").bind(id),
-      this.db.prepare("SELECT * FROM notes WHERE lead_id = ? ORDER BY created_at DESC").bind(id),
       this.db
-        .prepare("SELECT id, from_stage_id, to_stage_id, at, note FROM stage_transitions WHERE lead_id = ? ORDER BY at")
+        .prepare(
+          "SELECT n.id, n.lead_id, n.kind, n.body, n.created_at, u.name AS author FROM notes n LEFT JOIN users u ON u.id = n.author_id WHERE n.lead_id = ? ORDER BY n.created_at DESC",
+        )
+        .bind(id),
+      this.db
+        .prepare(
+          "SELECT t.id, t.from_stage_id, t.to_stage_id, t.at, t.note, u.name AS actor FROM stage_transitions t LEFT JOIN users u ON u.id = t.actor_id WHERE t.lead_id = ? ORDER BY t.at",
+        )
         .bind(id),
     ]);
     const row = lead.results[0];
@@ -420,9 +430,9 @@ export class Store {
         ),
       this.db
         .prepare(
-          "INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at) VALUES (?, ?, NULL, ?, ?)",
+          "INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at, actor_id) VALUES (?, ?, NULL, ?, ?, ?)",
         )
-        .bind(newId(), id, stage.id, at),
+        .bind(newId(), id, stage.id, at, this.actorId),
       ...(options.contacts ?? []).map((contact, index) => this.insertContact(id, contact, index)),
     ];
     await this.db.batch(statements);
@@ -488,9 +498,9 @@ export class Store {
           ),
         this.db
           .prepare(
-            "INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at, note) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO stage_transitions (id, lead_id, from_stage_id, to_stage_id, at, note, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
           )
-          .bind(newId(), id, current.stage_id, stage.id, at, options.note ?? null),
+          .bind(newId(), id, current.stage_id, stage.id, at, options.note ?? null, this.actorId),
       );
     } else {
       const { note: _note, at: _at, ...rest } = options;
@@ -516,11 +526,16 @@ export class Store {
       kind,
       body: body.trim(),
       created_at: normaliseTimestamp(createdAt, "created_at"),
+      author: null,
     };
+    if (this.actorId) {
+      const author = await this.db.prepare("SELECT name FROM users WHERE id = ?").bind(this.actorId).first<{ name: string }>();
+      note.author = author?.name ?? null;
+    }
     await this.db.batch([
       this.db
-        .prepare("INSERT INTO notes (id, lead_id, kind, body, created_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(note.id, note.lead_id, note.kind, note.body, note.created_at),
+        .prepare("INSERT INTO notes (id, lead_id, kind, body, created_at, author_id) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(note.id, note.lead_id, note.kind, note.body, note.created_at, this.actorId),
       // A meeting, call or email is contact; a plain note is not. An older entry never moves the date back.
       kind === "note"
         ? this.db.prepare("UPDATE leads SET updated_at = ? WHERE id = ?").bind(nowIso(), leadId)
