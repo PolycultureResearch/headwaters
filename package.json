@@ -1,0 +1,46 @@
+{
+  "name": "headwaters",
+  "version": "0.1.0",
+  "description": "A bespoke CRM and lead tracker for Polyculture Research",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "wrangler types && tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply headwaters --local",
+    "db:migrate": "wrangler d1 migrations apply headwaters --remote",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PolycultureResearch/headwaters.git"
+  },
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/PolycultureResearch/headwaters/issues"
+  },
+  "homepage": "https://github.com/PolycultureResearch/headwaters#readme",
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^1.2.3",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "agents": "^0.28.0",
+    "hono": "^4.13.13",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-markdown": "^10.1.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.63.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "wrangler": "^4.149.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261006.1": true
+  },
+  "private": true
+}

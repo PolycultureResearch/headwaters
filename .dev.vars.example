@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development. In production these are Worker secrets:
+#   npx wrangler secret put ADMIN_PASSWORD
+#   npx wrangler secret put SESSION_SECRET
+ADMIN_PASSWORD=choose-a-long-password
+SESSION_SECRET=any-long-random-string

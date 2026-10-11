@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "headwaters",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  // global_fetch_strictly_public lets the OAuth layer fetch client metadata documents safely.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": { "enabled": true },
+  "assets": {
+    "not_found_handling": "single-page-application",
+    // Everything that needs the Worker (API, MCP, OAuth, login) runs before static assets.
+    "run_worker_first": [
+      "/api/*",
+      "/mcp",
+      "/mcp/*",
+      "/authorize",
+      "/oauth/*",
+      "/.well-known/*",
+      "/login",
+      "/logout"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "headwaters",
+      // Replace with the id printed by `npx wrangler d1 create headwaters`.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      // OAuth grants and tokens for MCP clients, plus login throttling.
+      // Replace with the id printed by `npx wrangler kv namespace create OAUTH_KV`.
+      "binding": "OAUTH_KV",
+      "id": "00000000000000000000000000000000"
+    }
+  ]
+}
