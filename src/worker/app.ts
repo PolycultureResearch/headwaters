@@ -8,6 +8,7 @@ import {
   createContactInput,
   createLeadInput,
   createStageInput,
+  logContactInput,
   moveLeadInput,
   noteInput,
   reorderStagesInput,
@@ -138,6 +139,9 @@ api.post("/leads/:id/notes", async (c) => {
   const { body, kind, created_at } = noteInput.parse(await c.req.json());
   return c.json(await c.var.store.addNote(c.req.param("id"), body, kind, created_at), 201);
 });
+api.post("/leads/:id/contact", async (c) =>
+  c.json(await c.var.store.logContact(c.req.param("id"), logContactInput.parse(await c.req.json()))),
+);
 api.delete("/notes/:id", async (c) => {
   await c.var.store.deleteNote(c.req.param("id"));
   return c.body(null, 204);

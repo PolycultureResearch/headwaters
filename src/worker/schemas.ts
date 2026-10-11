@@ -19,6 +19,16 @@ export const leadFields = {
   next_action_due: date.nullable().describe("When the next action is due"),
   priority: z.number().int().min(1).max(3).describe("1 = high, 2 = normal, 3 = low"),
   follow_up_on: date.nullable().describe("For dormant leads: when to check back in"),
+  last_contact_at: timestamp
+    .nullable()
+    .describe("When there was last contact with anyone at the company. Normally set by add_note or log_contact"),
+  check_in_days: z
+    .number()
+    .int()
+    .positive()
+    .max(3650)
+    .nullable()
+    .describe("Get back in touch this many days after the last contact, e.g. 90. Applies in any stage. Null turns it off"),
   headcount: z.number().int().nonnegative().nullable().describe("Approximate number of employees"),
   annual_revenue_usd: z.number().int().nonnegative().nullable().describe("Estimated annual revenue in US dollars"),
   location: text(200).nullable().describe("Headquarters, as City, Region or City, Country"),
@@ -88,6 +98,17 @@ export const noteInput = z.object({
   body: z.string().trim().min(1).max(20_000).describe("The note, in Markdown"),
   kind: z.enum(["note", "meeting", "email", "call"]).default("note"),
   created_at: timestamp.optional().describe("When this happened, if not now"),
+});
+
+export const logContactInput = z.object({
+  at: timestamp.optional().describe("When the contact happened. Defaults to now"),
+  kind: z.enum(["email", "call", "meeting"]).default("email"),
+  summary: z
+    .string()
+    .trim()
+    .max(20_000)
+    .optional()
+    .describe("What was said, kept as a note. Leave out to record only that contact happened"),
 });
 
 export const createContactInput = contactInput;

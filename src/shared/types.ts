@@ -12,7 +12,7 @@ export interface Stage {
   stale_after_days: number | null;
 }
 
-export type Attention = "due" | "follow-up" | "stale" | null;
+export type Attention = "due" | "follow-up" | "check-in" | "stale" | null;
 
 export interface LeadSummary {
   id: string;
@@ -28,6 +28,12 @@ export interface LeadSummary {
   effective_next_action: string | null;
   priority: number;
   follow_up_on: string | null;
+  // The last meeting, call or email with anyone at the company.
+  last_contact_at: string | null;
+  days_since_contact: number | null;
+  // How often to get back in touch, and the date that makes the next check-in due.
+  check_in_days: number | null;
+  check_in_due: string | null;
   headcount: number | null;
   annual_revenue_usd: number | null;
   location: string | null;

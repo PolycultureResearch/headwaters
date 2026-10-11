@@ -25,6 +25,8 @@ export interface LeadFields {
   next_action_due?: string | null;
   priority?: number;
   follow_up_on?: string | null;
+  last_contact_at?: string | null;
+  check_in_days?: number | null;
   headcount?: number | null;
   annual_revenue_usd?: number | null;
   location?: string | null;
@@ -70,6 +72,8 @@ const LEAD_COLUMNS = [
   "next_action_due",
   "priority",
   "follow_up_on",
+  "last_contact_at",
+  "check_in_days",
   "headcount",
   "annual_revenue_usd",
   "location",
@@ -234,12 +238,19 @@ export class Store {
     const followUp = (row.follow_up_on as string | null) ?? null;
     const resting = stage?.kind === "won" || stage?.kind === "lost";
 
+    const lastContact = (row.last_contact_at as string | null) ?? null;
+    const checkInDays = (row.check_in_days as number | null) ?? null;
+    // With no contact logged yet, the interval counts from when the lead was added.
+    const checkInDue = checkInDays
+      ? new Date(Date.parse(lastContact ?? String(row.created_at)) + checkInDays * DAY_MS).toISOString().slice(0, 10)
+      : null;
+
+    // A check-in applies to every lead, clients and lost leads included; the rest only to open ones.
     let attention: Attention = null;
-    if (!resting) {
-      if (due && due <= today()) attention = "due";
-      else if (stage?.kind === "dormant" && followUp && followUp <= today()) attention = "follow-up";
-      else if (stage?.stale_after_days != null && daysInStage > stage.stale_after_days) attention = "stale";
-    }
+    if (!resting && due && due <= today()) attention = "due";
+    else if (stage?.kind === "dormant" && followUp && followUp <= today()) attention = "follow-up";
+    else if (checkInDue && checkInDue <= today()) attention = "check-in";
+    else if (!resting && stage?.stale_after_days != null && daysInStage > stage.stale_after_days) attention = "stale";
 
     const nextAction = (row.next_action as string | null) ?? null;
     return {
@@ -255,6 +266,10 @@ export class Store {
       effective_next_action: nextAction ?? stage?.default_next_action ?? null,
       priority: Number(row.priority),
       follow_up_on: followUp,
+      last_contact_at: lastContact,
+      days_since_contact: lastContact ? Math.max(0, Math.floor(daysBetween(lastContact, nowIso()))) : null,
+      check_in_days: checkInDays,
+      check_in_due: checkInDue,
       headcount: (row.headcount as number | null) ?? null,
       annual_revenue_usd: (row.annual_revenue_usd as number | null) ?? null,
       location: (row.location as string | null) ?? null,
@@ -343,9 +358,9 @@ export class Store {
       this.db
         .prepare(
           `INSERT INTO leads (id, name, website, summary, stage_id, stage_entered_at, next_action, next_action_due,
-            priority, follow_up_on, headcount, annual_revenue_usd, location, industry, fit, certifications, data_stack,
-            briefing, briefing_updated_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            priority, follow_up_on, last_contact_at, check_in_days, headcount, annual_revenue_usd, location, industry,
+            fit, certifications, data_stack, briefing, briefing_updated_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           id,
@@ -358,6 +373,8 @@ export class Store {
           fields.next_action_due ?? null,
           fields.priority ?? 2,
           fields.follow_up_on ?? null,
+          fields.last_contact_at ? normaliseTimestamp(fields.last_contact_at, "last_contact_at") : null,
+          fields.check_in_days ?? null,
           fields.headcount ?? null,
           fields.annual_revenue_usd ?? null,
           fields.location ?? null,
@@ -384,8 +401,9 @@ export class Store {
     const sets: string[] = [];
     const values: unknown[] = [];
     for (const column of LEAD_COLUMNS) {
-      const value = fields[column];
+      let value = fields[column];
       if (value === undefined) continue;
+      if (column === "last_contact_at" && value) value = normaliseTimestamp(String(value), "last_contact_at");
       sets.push(`${column} = ?`);
       values.push(Array.isArray(value) ? JSON.stringify(value) : value);
     }
@@ -465,9 +483,42 @@ export class Store {
       this.db
         .prepare("INSERT INTO notes (id, lead_id, kind, body, created_at) VALUES (?, ?, ?, ?, ?)")
         .bind(note.id, note.lead_id, note.kind, note.body, note.created_at),
-      this.db.prepare("UPDATE leads SET updated_at = ? WHERE id = ?").bind(nowIso(), leadId),
+      // A meeting, call or email is contact; a plain note is not. An older entry never moves the date back.
+      kind === "note"
+        ? this.db.prepare("UPDATE leads SET updated_at = ? WHERE id = ?").bind(nowIso(), leadId)
+        : this.db
+            .prepare(
+              "UPDATE leads SET updated_at = ?1, last_contact_at = MAX(COALESCE(last_contact_at, ''), ?2) WHERE id = ?3",
+            )
+            .bind(nowIso(), note.created_at, leadId),
     ]);
     return note;
+  }
+
+  /**
+   * Records that contact happened. With a summary it is kept as a note; without one only the date moves.
+   * Logging the same contact twice (same lead, kind and time) changes nothing, so a sync can be re-run.
+   */
+  async logContact(
+    ref: string,
+    options: { at?: string; kind?: Exclude<NoteKind, "note">; summary?: string } = {},
+  ): Promise<LeadDetail> {
+    const leadId = await this.resolveLeadId(ref);
+    const at = normaliseTimestamp(options.at, "at");
+    const kind = options.kind ?? "email";
+    if (options.summary?.trim()) {
+      const existing = await this.db
+        .prepare("SELECT id FROM notes WHERE lead_id = ? AND kind = ? AND created_at = ?")
+        .bind(leadId, kind, at)
+        .first();
+      if (!existing) await this.addNote(leadId, options.summary, kind, at);
+    } else {
+      await this.db
+        .prepare("UPDATE leads SET updated_at = ?1, last_contact_at = MAX(COALESCE(last_contact_at, ''), ?2) WHERE id = ?3")
+        .bind(nowIso(), at, leadId)
+        .run();
+    }
+    return this.getLead(leadId);
   }
 
   async deleteNote(noteId: string): Promise<void> {
@@ -535,6 +586,19 @@ export class Store {
     return this.getLead(contact.lead_id);
   }
 
+  /** Everyone attached to a lead, with their company, for matching against email or a calendar. */
+  async listContacts(): Promise<Row[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT c.id AS contact_id, c.name, c.title, c.email, c.is_primary, l.id AS lead_id, l.name AS lead,
+           l.website, l.last_contact_at
+         FROM contacts c JOIN leads l ON l.id = c.lead_id
+         WHERE l.archived_at IS NULL ORDER BY l.name, c.is_primary DESC, c.created_at`,
+      )
+      .all<Row>();
+    return results.map((row) => ({ ...row, is_primary: Boolean(row.is_primary) }));
+  }
+
   async deleteContact(contactId: string): Promise<void> {
     await this.db.prepare("DELETE FROM contacts WHERE id = ?").bind(contactId).run();
   }
@@ -545,15 +609,15 @@ export class Store {
   async getFocus(): Promise<LeadSummary[]> {
     const { stages, leads } = await this.getPipeline();
     const position = new Map(stages.map((s) => [s.id, s]));
-    const urgency = { due: 0, "follow-up": 1, stale: 2 } as const;
+    const urgency = { due: 0, "follow-up": 1, "check-in": 2, stale: 3 } as const;
     return leads
       .filter((lead) => {
         const kind = position.get(lead.stage_id)?.kind;
         return kind === "active" || lead.attention !== null;
       })
       .sort((a, b) => {
-        const ua = a.attention ? urgency[a.attention] : 3;
-        const ub = b.attention ? urgency[b.attention] : 3;
+        const ua = a.attention ? urgency[a.attention] : 4;
+        const ub = b.attention ? urgency[b.attention] : 4;
         if (ua !== ub) return ua - ub;
         if (a.priority !== b.priority) return a.priority - b.priority;
         // Later stages are closer to revenue, so they come first.

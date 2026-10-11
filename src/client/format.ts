@@ -15,6 +15,14 @@ export function formatDays(days: number): string {
   return `${Math.round(days / 30)}mo`;
 }
 
+/** How long ago something happened, to the precision that matters for keeping in touch. */
+export function formatAgo(days: number): string {
+  if (days < 1) return "today";
+  if (days < 14) return `${Math.round(days)}d ago`;
+  if (days < 60) return `${Math.round(days / 7)}w ago`;
+  return `${Math.round(days / 30)}mo ago`;
+}
+
 export function formatMoney(usd: number): string {
   if (usd >= 1e9) return `$${trim(usd / 1e9)}B`;
   if (usd >= 1e6) return `$${trim(usd / 1e6)}M`;

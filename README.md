@@ -24,6 +24,8 @@ One Cloudflare Worker serves everything.
 
 Stages are rows in the database, not code. Each has a name, a kind (pipeline step, won, dormant or lost), exit criteria, a default next action, and a number of days after which a lead sitting in it is flagged. Edit them from **Stages** in the UI or with the `create_stage` and `update_stage` tools.
 
+Every lead also tracks when it was last in touch. Logging a meeting, call or email note updates it, as does **Contacted today** on the lead. Give a lead a check-in interval (say 90 days) and it shows up as due for a check-in that long after the last contact, whatever stage it is in.
+
 Sign-in is a single password, for a single user.
 
 ## Run it locally
@@ -59,6 +61,8 @@ The deploy prints the URL, something like `https://headwaters.<your-subdomain>.w
 
 To have Claude research companies in a consistent way, upload `skills/research-lead` as a skill (Settings → Capabilities → Skills). Edit the "Who Polyculture Research is looking for" section first; it drives the fit rating.
 
+To keep last-contact dates current from your inbox, also enable Claude's Gmail connector and upload `skills/sync-contact-log`. Then "sync my email with Headwaters" logs the latest exchange with each lead.
+
 Then try:
 
 > Libro.fm looks like a good product and it is a certified B Corp. Research it, assess whether it is a fit, and add it to Headwaters with a briefing and the best contacts.
@@ -77,6 +81,8 @@ Then try:
 | `update_lead` | Change fields on a lead |
 | `move_lead` | Move a lead to another stage and record why |
 | `add_note` | Attach a note, meeting, call or email summary |
+| `log_contact` | Record that contact happened, updating the last-contact date |
+| `list_contacts` | Everyone on every lead, with email addresses, for matching against email |
 | `add_contact`, `update_contact` | Manage people on a lead |
 | `create_stage`, `update_stage` | Change the pipeline itself |
 

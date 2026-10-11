@@ -6,6 +6,7 @@ import {
   createContactInput,
   createLeadInput,
   createStageInput,
+  logContactInput,
   moveLeadInput,
   noteInput,
   updateContactInput,
@@ -22,7 +23,8 @@ Working conventions:
 - Each stage has exit_criteria: what must be true for a lead to move on. When you move a lead, also set next_action (and next_action_due when there is a date) to the concrete thing that satisfies the new stage's exit criteria. A lead with no next_action shows the stage's default.
 - Record what happened with add_note (kind "meeting", "call" or "email" when it was one). Put durable company facts in the structured fields with update_lead, not only in notes.
 - Research goes in the lead's briefing (Markdown), with the structured fields (headcount, annual_revenue_usd, location, industry, certifications, data_stack, fit) filled from it. Leave a field out when you could not find it; do not guess silently.
-- Moving a lead to a dormant stage should come with follow_up_on.`;
+- Moving a lead to a dormant stage should come with follow_up_on.
+- Every lead tracks last_contact_at. add_note with kind meeting, call or email updates it; use log_contact when contact happened but there is nothing more to record, or when syncing from email. Set check_in_days on a lead to have it resurface that many days after the last contact, in any stage.`;
 
 const lead = z.string().describe("The lead's name or id");
 
@@ -104,7 +106,7 @@ export function createServer(env: Env): McpServer {
     {
       title: "Get focus list",
       description:
-        "The leads that need work, most pressing first: next actions due, dormant leads whose follow-up date has arrived, leads gone stale in their stage, then the rest of the open pipeline by priority and stage.",
+        "The leads that need work, most pressing first: next actions due, dormant leads whose follow-up date has arrived, leads due a check-in, leads gone stale in their stage, then the rest of the open pipeline by priority and stage.",
       inputSchema: {},
       annotations: readOnly,
     },
@@ -171,6 +173,34 @@ export function createServer(env: Env): McpServer {
       inputSchema: { lead, ...noteInput.shape },
     },
     ({ lead, body, kind, created_at }) => run(() => store.addNote(lead, body, kind, created_at)),
+  );
+
+  server.registerTool(
+    "log_contact",
+    {
+      title: "Log contact",
+      description:
+        "Record that there was contact with a lead (an email, call or meeting), which updates its last-contact date. Pass a summary to keep it as a note too. Safe to repeat: the same lead, kind and time is only recorded once, and an older contact never moves the last-contact date back.",
+      inputSchema: { lead, ...logContactInput.shape },
+      annotations: { idempotentHint: true },
+    },
+    ({ lead, ...options }) =>
+      run(async () => {
+        const { name, last_contact_at, check_in_days, check_in_due } = await store.logContact(lead, options);
+        return { lead: name, last_contact_at, check_in_days, check_in_due };
+      }),
+  );
+
+  server.registerTool(
+    "list_contacts",
+    {
+      title: "List contacts",
+      description:
+        "Every person attached to a lead, with their email address, company and that company's last-contact date. Use it to match emails or calendar events to leads.",
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    () => run(() => store.listContacts()),
   );
 
   server.registerTool(

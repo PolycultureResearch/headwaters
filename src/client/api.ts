@@ -26,6 +26,8 @@ export type LeadPatch = Partial<
     | "next_action_due"
     | "priority"
     | "follow_up_on"
+    | "last_contact_at"
+    | "check_in_days"
     | "headcount"
     | "annual_revenue_usd"
     | "location"
@@ -57,6 +59,7 @@ export const api = {
   moveLead: (id: string, stage: string) => request<LeadDetail>("POST", `/leads/${id}/move`, { stage }),
   archiveLead: (id: string) => request<void>("DELETE", `/leads/${id}`),
   addNote: (id: string, body: string, kind: Note["kind"]) => request<Note>("POST", `/leads/${id}/notes`, { body, kind }),
+  logContact: (id: string) => request<LeadDetail>("POST", `/leads/${id}/contact`, {}),
   deleteNote: (noteId: string) => request<void>("DELETE", `/notes/${noteId}`),
   addContact: (id: string, contact: ContactInput) => request<LeadDetail>("POST", `/leads/${id}/contacts`, contact),
   updateContact: (contactId: string, patch: Partial<ContactInput>) =>

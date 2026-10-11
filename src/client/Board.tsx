@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummary, Stage } from "../shared/types";
-import { formatDate, formatDays } from "./format";
+import { formatAgo, formatDate, formatDays } from "./format";
 
 interface BoardProps {
   stages: Stage[];
@@ -10,7 +10,12 @@ interface BoardProps {
   onAdd: (stageId: string) => void;
 }
 
-const ATTENTION_LABEL = { due: "Action due", "follow-up": "Follow-up due", stale: "Gone quiet" } as const;
+const ATTENTION_LABEL = {
+  due: "Action due",
+  "follow-up": "Follow-up due",
+  "check-in": "Time to check in",
+  stale: "Gone quiet",
+} as const;
 
 export function Board({ stages, leads, onOpen, onMove, onAdd }: BoardProps) {
   const [dragging, setDragging] = useState<string | null>(null);
@@ -114,6 +119,15 @@ function Card({ lead, stage, dragging, onOpen, onDragStart, onDragEnd }: CardPro
         )}
         {stage.kind === "dormant" && lead.follow_up_on && (
           <span className={lead.attention === "follow-up" ? "due" : ""}>Back {formatDate(lead.follow_up_on)}</span>
+        )}
+        {lead.attention === "check-in" ? (
+          <span className="check-in">
+            Check in{lead.days_since_contact !== null && ` · last ${formatAgo(lead.days_since_contact)}`}
+          </span>
+        ) : (
+          // Leads at rest have no next action, so their last contact is the thing worth seeing.
+          stage.kind !== "active" &&
+          lead.days_since_contact !== null && <span>Last contact {formatAgo(lead.days_since_contact)}</span>
         )}
         {lead.primary_contact && <span className="contact">{lead.primary_contact}</span>}
       </span>

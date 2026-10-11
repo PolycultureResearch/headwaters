@@ -400,6 +400,9 @@ textarea {
 }
 
 .age.stale,
+.age.check-in,
+.card-meta .check-in,
+.badge.check-in,
 .badge.stale {
   color: var(--amber);
 }
@@ -729,6 +732,33 @@ textarea {
 
 .forward-action .editable:focus {
   padding-left: 6px;
+}
+
+.forward-contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.forward-contact .inline-date {
+  flex: 1 1 100%;
+}
+
+.forward-contact .editable.boxed {
+  flex: none;
+  width: 48px;
+  padding: 3px 6px;
+  font-weight: 400;
+  text-align: center;
+  color: var(--text);
+  border-color: var(--line);
+  background: var(--surface);
 }
 
 .inline-date {

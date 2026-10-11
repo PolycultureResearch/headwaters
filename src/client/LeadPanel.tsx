@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Contact, Fit, LeadDetail, Note, Stage } from "../shared/types";
 import { api, type LeadPatch } from "./api";
-import { formatDate, formatDays, formatMoney, hostname, parseAmount, parseTags, safeUrl } from "./format";
+import { formatAgo, formatDate, formatDays, formatMoney, hostname, parseAmount, parseTags, safeUrl } from "./format";
 
 interface LeadPanelProps {
   leadId: string;
@@ -146,6 +146,28 @@ export function LeadPanel({ leadId, stages, version, onClose, onChanged, onError
               )}
             </div>
           )}
+          <div className="forward-contact">
+            <span className={lead.attention === "check-in" ? "age check-in" : ""}>
+              {lead.last_contact_at
+                ? `Last contact ${formatDate(lead.last_contact_at)} · ${formatAgo(lead.days_since_contact ?? 0)}`
+                : "No contact logged"}
+            </span>
+            <button className="ghost small" onClick={() => apply(() => api.logContact(leadId))}>
+              Contacted today
+            </button>
+            <label className="inline-date">
+              Check in every
+              <EditableText
+                label="Days between check-ins"
+                className="narrow boxed"
+                value={lead.check_in_days?.toString() ?? ""}
+                placeholder="–"
+                onSave={(v) => save({ check_in_days: /^\d+$/.test(v) && Number(v) > 0 ? Number(v) : null })}
+              />
+              days
+              {lead.check_in_due && <span>· next {formatDate(lead.check_in_due)}</span>}
+            </label>
+          </div>
         </section>
 
         <section>
