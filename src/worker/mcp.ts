@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { LeadDetail, LeadSummary } from "../shared/types";
 import {
+  archiveLeadInput,
   createContactInput,
   createLeadInput,
   createStageInput,
@@ -26,7 +27,8 @@ Working conventions:
 - Moving a lead to a dormant stage should come with follow_up_on.
 - Every lead tracks last_contact_at. add_note with kind meeting, call or email updates it; use log_contact when contact happened but there is nothing more to record, or when syncing from email. Set check_in_days on a lead to have it resurface that many days after the last contact, in any stage.
 - Every lead should have an origin: where it came from, as a short reusable channel (get_pipeline lists the origins in use), with origin_detail for the specifics. Ask if you are adding a lead and do not know. get_funnel compares origins.
-- Each open lead has a heat score from 0 to 100 (heat_level hot, warm, mild or cool), worked out from fit, priority, how far along the pipeline it is and whether something is due. It cannot be set directly: change fit or priority instead.`;
+- Each open lead has a heat score from 0 to 100 (heat_level hot, warm, mild or cool), worked out from fit, priority, how far along the pipeline it is and whether something is due. It cannot be set directly: change fit or priority instead.
+- archive_lead takes a company off the board and out of the funnel statistics without deleting it; use it for a company that turned out not to be a prospect at all (out of business, wrong kind of company). A lead that was pursued and said no belongs in a lost stage instead, so it still counts. Archived leads are not in get_pipeline; use list_archived_leads and restore_lead.`;
 
 const lead = z.string().describe("The lead's name or id");
 
@@ -166,6 +168,55 @@ export function createServer(env: Env, userId: string): McpServer {
       inputSchema: { lead, ...moveLeadInput.shape },
     },
     ({ lead, stage, ...options }) => run(async () => detail(store, await store.moveLead(lead, stage, options))),
+  );
+
+  server.registerTool(
+    "archive_lead",
+    {
+      title: "Archive lead",
+      description:
+        "Take a lead off the board and out of the funnel statistics, keeping its briefing, contacts, notes and history. For companies that turned out not to be prospects. Can be undone with restore_lead.",
+      inputSchema: { lead, ...archiveLeadInput.shape },
+      annotations: { idempotentHint: true },
+    },
+    ({ lead, reason }) =>
+      run(async () => {
+        const { id, name, archived_at } = await store.archiveLead(lead, reason);
+        return { id, lead: name, archived_at };
+      }),
+  );
+
+  server.registerTool(
+    "list_archived_leads",
+    {
+      title: "List archived leads",
+      description: "Leads that were archived: off the board but kept. Check here before adding a company that may have been looked at before.",
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    () =>
+      run(async () =>
+        (await store.listArchived()).map(({ id, name, summary, website, fit, origin, archived_at }) => ({
+          id,
+          name,
+          summary,
+          website,
+          fit,
+          origin,
+          archived_at,
+        })),
+      ),
+  );
+
+  server.registerTool(
+    "restore_lead",
+    {
+      title: "Restore archived lead",
+      description: "Put an archived lead back on the board, in the stage it was in when archived.",
+      inputSchema: { lead: z.string().describe("The archived lead's name or id") },
+      annotations: { idempotentHint: true },
+    },
+    ({ lead }) => run(async () => detail(store, await store.restoreLead(lead))),
   );
 
   server.registerTool(

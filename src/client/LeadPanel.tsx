@@ -125,6 +125,15 @@ export function LeadPanel({ leadId, stages, origins, version, onClose, onChanged
           )}
         </div>
 
+        {lead.archived_at && (
+          <p className="archived-banner">
+            Archived {formatDate(lead.archived_at)}. Off the board and out of the funnel numbers.
+            <button className="ghost small" onClick={() => apply(() => api.restoreLead(leadId))}>
+              Restore
+            </button>
+          </p>
+        )}
+
         <section className="forward">
           <div className="forward-stage">
             <select
@@ -337,16 +346,31 @@ export function LeadPanel({ leadId, stages, origins, version, onClose, onChanged
         </section>
 
         <footer className="panel-foot">
-          <button
-            className="ghost danger"
-            onClick={async () => {
-              if (!window.confirm(`Remove ${lead.name} from the pipeline?`)) return;
-              await apply(() => api.archiveLead(leadId));
-              onClose();
-            }}
-          >
-            Remove lead
-          </button>
+          {lead.archived_at ? (
+            <button
+              className="ghost danger"
+              onClick={async () => {
+                if (!window.confirm(`Delete ${lead.name} for good? Its briefing, contacts and notes go too.`)) return;
+                await apply(() => api.deleteLead(leadId));
+                onClose();
+              }}
+            >
+              Delete permanently
+            </button>
+          ) : (
+            <button
+              className="ghost"
+              title="Take it off the board but keep everything about it"
+              onClick={async () => {
+                const reason = window.prompt(`Archive ${lead.name}? It leaves the board but is kept. Reason (optional):`);
+                if (reason === null) return;
+                await apply(() => api.archiveLead(leadId, reason.trim() || undefined));
+                onClose();
+              }}
+            >
+              Archive
+            </button>
+          )}
         </footer>
       </aside>
     </>

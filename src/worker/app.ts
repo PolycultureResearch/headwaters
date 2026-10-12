@@ -5,6 +5,7 @@ import { ZodError } from "zod";
 import { clearSessionCookie, currentUser, safeNext, sessionCookie, signIn } from "./auth";
 import { consentPage, invitePage, loginPage, messagePage } from "./pages";
 import {
+  archiveLeadInput,
   createContactInput,
   createLeadInput,
   createStageInput,
@@ -164,8 +165,14 @@ api.post("/leads/:id/move", async (c) => {
   const { stage, ...options } = moveLeadInput.parse(await c.req.json());
   return c.json(await c.var.store.moveLead(c.req.param("id"), stage, options));
 });
+api.get("/archive", async (c) => c.json(await c.var.store.listArchived()));
+api.post("/leads/:id/archive", async (c) =>
+  c.json(await c.var.store.archiveLead(c.req.param("id"), archiveLeadInput.parse(await c.req.json()).reason)),
+);
+api.post("/leads/:id/restore", async (c) => c.json(await c.var.store.restoreLead(c.req.param("id"))));
+// Only an archived lead can be deleted for good.
 api.delete("/leads/:id", async (c) => {
-  await c.var.store.archiveLead(c.req.param("id"));
+  await c.var.store.deleteArchivedLead(c.req.param("id"));
   return c.body(null, 204);
 });
 

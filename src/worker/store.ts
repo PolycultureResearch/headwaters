@@ -268,14 +268,16 @@ export class Store {
       : null;
 
     // A check-in applies to every lead, clients and lost leads included; the rest only to open ones.
+    const archived = (row.archived_at as string | null) ?? null;
     let attention: Attention = null;
-    if (!resting && due && due <= today()) attention = "due";
+    if (archived) attention = null;
+    else if (!resting && due && due <= today()) attention = "due";
     else if (stage?.kind === "dormant" && followUp && followUp <= today()) attention = "follow-up";
     else if (checkInDue && checkInDue <= today()) attention = "check-in";
     else if (!resting && stage?.stale_after_days != null && daysInStage > stage.stale_after_days) attention = "stale";
 
     let heat: number | null = null;
-    if (!resting) {
+    if (!resting && !archived) {
       const active = [...stages.values()].filter((s) => s.kind === "active").sort((a, b) => a.position - b.position);
       const step = active.findIndex((s) => s.id === stage?.id);
       const progress = step > 0 ? (step / (active.length - 1)) * HEAT_PROGRESS : 0;
@@ -320,6 +322,7 @@ export class Store {
       heat_level: heat === null ? null : heatLevel(heat),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
+      archived_at: archived,
     };
   }
 
@@ -354,12 +357,12 @@ export class Store {
     return existing?.origin ?? origin;
   }
 
-  /** Finds a lead by id, exact name, or an unambiguous part of its name. */
+  /** Finds a lead by id, exact name, or an unambiguous part of its name. An archived lead is found by id only. */
   async resolveLeadId(ref: string): Promise<string> {
     const needle = ref.trim();
     const { results } = await this.db
       .prepare(
-        "SELECT id, name FROM leads WHERE archived_at IS NULL AND (id = ?1 OR name LIKE ?1 OR name LIKE '%' || ?1 || '%')",
+        "SELECT id, name FROM leads WHERE id = ?1 OR (archived_at IS NULL AND (name LIKE ?1 OR name LIKE '%' || ?1 || '%'))",
       )
       .bind(needle)
       .all<{ id: string; name: string }>();
@@ -414,9 +417,12 @@ export class Store {
     const name = fields.name.trim();
     if (!name) throw new UserError("A lead needs a name.");
     const existing = await this.db
-      .prepare("SELECT id FROM leads WHERE archived_at IS NULL AND name LIKE ?")
+      .prepare("SELECT id, archived_at FROM leads WHERE name LIKE ? ORDER BY archived_at IS NOT NULL LIMIT 1")
       .bind(name)
-      .first<{ id: string }>();
+      .first<{ id: string; archived_at: string | null }>();
+    if (existing?.archived_at) {
+      throw new UserError(`${name} is in the archive (id ${existing.id}). Restore it instead of adding it again.`);
+    }
     if (existing) throw new UserError(`${name} is already in the pipeline (id ${existing.id}). Update it instead.`);
 
     const stage = options.stage ? await this.resolveStage(options.stage) : (await this.listStages())[0];
@@ -539,9 +545,65 @@ export class Store {
     return this.getLead(id);
   }
 
-  async archiveLead(ref: string): Promise<void> {
+  /** Takes a lead off the board and out of the statistics, keeping everything about it. */
+  async archiveLead(ref: string, reason?: string): Promise<LeadDetail> {
     const id = await this.resolveLeadId(ref);
-    await this.db.prepare("UPDATE leads SET archived_at = ? WHERE id = ?").bind(nowIso(), id).run();
+    if (reason?.trim()) await this.addNote(id, `Archived: ${reason.trim()}`);
+    await this.db.prepare("UPDATE leads SET archived_at = COALESCE(archived_at, ?) WHERE id = ?").bind(nowIso(), id).run();
+    return this.getLead(id);
+  }
+
+  async listArchived(): Promise<LeadSummary[]> {
+    const stages = new Map((await this.listStages()).map((s) => [s.id, s]));
+    const { results } = await this.db
+      .prepare(`${Store.SUMMARY_SQL} WHERE l.archived_at IS NOT NULL ORDER BY l.archived_at DESC`)
+      .all<Row>();
+    return results.map((row) => this.toSummary(row, stages));
+  }
+
+  /** Finds an archived lead by id, exact name, or an unambiguous part of its name. */
+  private async resolveArchivedId(ref: string): Promise<string> {
+    const needle = ref.trim().toLowerCase();
+    const archived = await this.listArchived();
+    const exact = archived.filter((l) => l.id === needle || l.name.toLowerCase() === needle);
+    const matches = exact.length ? exact : archived.filter((l) => l.name.toLowerCase().includes(needle));
+    if (matches.length === 1) return matches[0].id;
+    if (matches.length === 0) throw new UserError(`No archived lead matches "${ref}".`);
+    throw new UserError(`"${ref}" matches more than one archived lead: ${matches.map((l) => `${l.name} (${l.id})`).join(", ")}. Use the id.`);
+  }
+
+  /** Puts an archived lead back on the board, in the stage it was in. */
+  async restoreLead(ref: string): Promise<LeadDetail> {
+    const id = await this.resolveArchivedId(ref);
+    const clash = await this.db
+      .prepare("SELECT l.name FROM leads l JOIN leads a ON a.id = ?1 WHERE l.archived_at IS NULL AND l.name LIKE a.name")
+      .bind(id)
+      .first<{ name: string }>();
+    if (clash) throw new UserError(`There is already a lead called ${clash.name} on the board.`);
+    const stage = await this.db
+      .prepare("SELECT s.archived_at FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ?")
+      .bind(id)
+      .first<{ archived_at: string | null }>();
+    // Its old stage may have been retired since; if so it comes back at the start of the pipeline.
+    if (stage?.archived_at) {
+      const first = (await this.listStages())[0];
+      await this.db.prepare("UPDATE leads SET stage_id = ?, stage_entered_at = ? WHERE id = ?").bind(first.id, nowIso(), id).run();
+    }
+    await this.db.prepare("UPDATE leads SET archived_at = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), id).run();
+    return this.getLead(id);
+  }
+
+  /** Deletes an archived lead for good, with its contacts, notes and history. */
+  async deleteArchivedLead(id: string): Promise<void> {
+    const lead = await this.db.prepare("SELECT archived_at FROM leads WHERE id = ?").bind(id).first<{ archived_at: string | null }>();
+    if (!lead) throw new UserError("That lead no longer exists.");
+    if (!lead.archived_at) throw new UserError("Archive the lead before deleting it.");
+    await this.db.batch([
+      this.db.prepare("DELETE FROM notes WHERE lead_id = ?").bind(id),
+      this.db.prepare("DELETE FROM contacts WHERE lead_id = ?").bind(id),
+      this.db.prepare("DELETE FROM stage_transitions WHERE lead_id = ?").bind(id),
+      this.db.prepare("DELETE FROM leads WHERE id = ?").bind(id),
+    ]);
   }
 
   // ---- notes ----

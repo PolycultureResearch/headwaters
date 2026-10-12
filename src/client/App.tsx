@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LeadSummary, Pipeline, User } from "../shared/types";
 import { api } from "./api";
+import { Archive } from "./Archive";
 import { Board } from "./Board";
 import { Focus } from "./Focus";
 import { FunnelView } from "./Funnel";
@@ -8,11 +9,12 @@ import { LeadPanel } from "./LeadPanel";
 import { People } from "./People";
 import { StageSettings } from "./StageSettings";
 
-type View = "board" | "focus" | "funnel";
+type View = "board" | "focus" | "funnel" | "archive";
 const VIEWS: { id: View; label: string }[] = [
   { id: "board", label: "Board" },
   { id: "focus", label: "Focus" },
   { id: "funnel", label: "Funnel" },
+  { id: "archive", label: "Archive" },
 ];
 
 function matches(lead: LeadSummary, needle: string): boolean {
@@ -165,6 +167,7 @@ export function App() {
         )}
         {view === "focus" && <Focus stages={pipeline.stages} version={version} onOpen={setSelected} />}
         {view === "funnel" && <FunnelView version={version} />}
+        {view === "archive" && <Archive stages={pipeline.stages} version={version} onOpen={setSelected} act={act} />}
       </main>
 
       {selected && (

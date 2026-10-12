@@ -28,6 +28,8 @@ Every lead also tracks when it was last in touch. Logging a meeting, call or ema
 
 Cards are colour coded by heat, a score from 0 to 100 for how much a lead deserves attention now: fit (up to 30), priority (25), how far along the pipeline it is (20) and whether something is due (25). Hot leads are red, then orange, yellow and blue, and each column lists the hottest first. Won and lost leads have no heat.
 
+A lead that turns out not to be a prospect can be archived from the bottom of its panel. It leaves the board and the funnel numbers but keeps its briefing, contacts, notes and history, and can be restored from the Archive view. Only an archived lead can be deleted for good.
+
 Each lead has an origin: where it came from, as a short channel such as "Community" or "Own research", plus a detail line for the specifics. The funnel view splits the pipeline by origin, to show which sources of leads go furthest.
 
 Sign-in is by account. The owner signs in with the `ADMIN_PASSWORD` secret (email left blank, or their own once set under **People**). The owner invites anyone else from **People**: Headwaters gives a one-time link, valid for 7 days, that the person uses to set their own password. Everyone invited can see and manage the whole pipeline; only the owner can add or remove people. Notes and stage moves record who made them. Removing someone signs them out and cuts off any Claude connection they made. Headwaters sends no email, so a forgotten password is fixed by the owner issuing a new link.
@@ -84,6 +86,7 @@ Then try:
 | `create_lead` | Add a company, with briefing, attributes and contacts in one call |
 | `update_lead` | Change fields on a lead |
 | `move_lead` | Move a lead to another stage and record why |
+| `archive_lead`, `restore_lead`, `list_archived_leads` | Take a lead off the board without deleting it, and bring it back |
 | `add_note` | Attach a note, meeting, call or email summary |
 | `log_contact` | Record that contact happened, updating the last-contact date |
 | `list_contacts` | Everyone on every lead, with email addresses, for matching against email |

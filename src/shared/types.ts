@@ -56,6 +56,8 @@ export interface LeadSummary {
   heat_level: HeatLevel | null;
   created_at: string;
   updated_at: string;
+  // Set when the lead has been taken off the board and out of the statistics, but kept.
+  archived_at: string | null;
 }
 
 export interface Contact {

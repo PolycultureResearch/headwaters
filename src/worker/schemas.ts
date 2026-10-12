@@ -109,6 +109,10 @@ export const noteInput = z.object({
   created_at: timestamp.optional().describe("When this happened, if not now"),
 });
 
+export const archiveLeadInput = z.object({
+  reason: text(500).optional().describe("Why it is being archived, kept as a note on the lead"),
+});
+
 export const logContactInput = z.object({
   at: timestamp.optional().describe("When the contact happened. Defaults to now"),
   kind: z.enum(["email", "call", "meeting"]).default("email"),
