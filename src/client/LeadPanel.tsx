@@ -340,7 +340,7 @@ export function LeadPanel({ leadId, stages, origins, version, onClose, onChanged
           <button
             className="ghost danger"
             onClick={async () => {
-              if (!window.confirm(`Remove ${lead.name} from Headwaters?`)) return;
+              if (!window.confirm(`Remove ${lead.name} from the pipeline?`)) return;
               await apply(() => api.archiveLead(leadId));
               onClose();
             }}

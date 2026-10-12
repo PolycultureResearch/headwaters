@@ -91,7 +91,7 @@ export class Users {
 
   private async require(id: string): Promise<UserRecord> {
     const user = await this.get(id);
-    if (!user) throw new UserError("That person is no longer in Headwaters.");
+    if (!user) throw new UserError("That person no longer has access.");
     return user;
   }
 

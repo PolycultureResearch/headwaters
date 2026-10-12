@@ -126,7 +126,7 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="wordmark">Headwaters</h1>
+        <h1 className="wordmark">Polyculture Research</h1>
         <nav className="views" aria-label="Views">
           {VIEWS.map((v) => (
             <button key={v.id} className={view === v.id ? "active" : ""} aria-current={view === v.id} onClick={() => setView(v.id)}>

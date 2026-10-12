@@ -45,8 +45,8 @@ export function StageSettings({ stages, leads, onClose, act }: StageSettingsProp
           </button>
         </header>
         <p className="muted">
-          The pipeline, left to right. Each stage says what has to happen for a lead to leave it, and what to do by
-          default while it is there.
+          The pipeline, left to right. Each stage says what it means for a lead to be there, what has to happen for a
+          lead to leave it, and what to do by default in the meantime.
         </p>
         <ol className="stage-list">
           {stages.map((stage, index) => {
@@ -87,6 +87,15 @@ export function StageSettings({ stages, leads, onClose, act }: StageSettingsProp
                     </button>
                   </div>
                 </div>
+                <label>
+                  <span>What it means</span>
+                  <Text
+                    label="Description"
+                    value={stage.description ?? ""}
+                    placeholder="What a lead in this stage is"
+                    onSave={(v) => save({ description: v || null })}
+                  />
+                </label>
                 <label>
                   <span>Leaves when</span>
                   <Text

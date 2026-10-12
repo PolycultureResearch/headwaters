@@ -63,8 +63,8 @@ function redirectSource(redirectUri: string): string[] {
 
 export function loginPage(next: string, error?: string, status = 200): Response {
   return page(
-    "Sign in to Headwaters",
-    `<h1>Headwaters</h1>
+    "Sign in to Polyculture Research",
+    `<h1>Polyculture Research</h1>
 <p>Sign in to continue.</p>
 ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
 <form method="post" action="/login">
@@ -79,9 +79,9 @@ ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
 
 export function invitePage(token: string, name: string, email: string, minLength: number, error?: string, status = 200): Response {
   return page(
-    "Join Headwaters",
+    "Join Polyculture Research",
     `<h1>Welcome, ${escapeHtml(name)}</h1>
-<p>Choose a password for Headwaters. You will sign in with <strong>${escapeHtml(email)}</strong>.</p>
+<p>Choose a password for the Polyculture Research pipeline. You will sign in with <strong>${escapeHtml(email)}</strong>.</p>
 ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
 <form method="post" action="/invite/${escapeHtml(token)}">
   <input type="email" name="email" value="${escapeHtml(email)}" autocomplete="username" readonly hidden>
@@ -98,9 +98,9 @@ export function consentPage(details: ConsentDescription, handle: string, headers
     ? `Published by <strong>${escapeHtml(details.clientDomain)}</strong>.`
     : "This app registered itself, so its name is not verified.";
   return page(
-    "Connect to Headwaters",
+    "Connect to Polyculture Research",
     `<h1>Connect ${escapeHtml(details.clientName)}?</h1>
-<p>It will be able to read and change everything in Headwaters: leads, contacts, notes and stages.</p>
+<p>It will be able to read and change everything in the Polyculture Research pipeline: leads, contacts, notes and stages.</p>
 <p>${publisher} Access will be sent to <strong>${escapeHtml(details.redirectHost)}</strong>.</p>
 ${details.redirectIsLoopback ? '<p class="warn">This sends access to an app on your computer. Continue only if you just started connecting from it.</p>' : ""}
 <form method="post" action="/authorize">

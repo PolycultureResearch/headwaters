@@ -69,6 +69,7 @@ export const stageFields = {
   kind: z
     .enum(["active", "won", "lost", "dormant"])
     .describe("active = a step in the forward pipeline; won, lost and dormant are where leads come to rest"),
+  description: text(200).nullable().describe("What a lead in this stage is, in a short sentence. Shown under the stage name on the board"),
   exit_criteria: text(400).nullable().describe("What has to be true for a lead to move on from this stage"),
   default_next_action: text(400)
     .nullable()

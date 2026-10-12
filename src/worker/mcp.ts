@@ -20,7 +20,7 @@ const INSTRUCTIONS = `Headwaters is the lead pipeline for Polyculture Research. 
 Working conventions:
 - Call get_pipeline first if you do not know the current stages or whether a company is already tracked. Stages are configurable, so never assume their names.
 - Refer to a lead by its name or id. Names match case-insensitively and partial names work when unambiguous.
-- Each stage has exit_criteria: what must be true for a lead to move on. When you move a lead, also set next_action (and next_action_due when there is a date) to the concrete thing that satisfies the new stage's exit criteria. A lead with no next_action shows the stage's default.
+- Each stage has a description (what a lead in that stage is) and exit_criteria: what must be true for a lead to move on. When you move a lead, also set next_action (and next_action_due when there is a date) to the concrete thing that satisfies the new stage's exit criteria. A lead with no next_action shows the stage's default.
 - Record what happened with add_note (kind "meeting", "call" or "email" when it was one). Put durable company facts in the structured fields with update_lead, not only in notes.
 - Research goes in the lead's briefing (Markdown), with the structured fields (headcount, annual_revenue_usd, location, industry, certifications, data_stack, fit) filled from it. Leave a field out when you could not find it; do not guess silently.
 - Moving a lead to a dormant stage should come with follow_up_on.
@@ -241,7 +241,7 @@ export function createServer(env: Env, userId: string): McpServer {
     "update_stage",
     {
       title: "Update stage",
-      description: "Rename a stage or change its exit criteria, default next action or stale threshold.",
+      description: "Rename a stage or change its description, exit criteria, default next action or stale threshold.",
       inputSchema: { stage: z.string().describe("Stage name or id"), ...updateStageInput.shape },
       annotations: { idempotentHint: true },
     },

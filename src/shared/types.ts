@@ -7,6 +7,8 @@ export interface Stage {
   name: string;
   position: number;
   kind: StageKind;
+  // What a lead in this stage is. exit_criteria is what moves it out.
+  description: string | null;
   exit_criteria: string | null;
   default_next_action: string | null;
   stale_after_days: number | null;

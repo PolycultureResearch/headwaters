@@ -55,7 +55,11 @@ export function Board({ stages, leads, onOpen, onMove, onAdd }: BoardProps) {
                   +
                 </button>
               </div>
-              {stage.exit_criteria && <p className="exit">{stage.exit_criteria}</p>}
+              {stage.description && (
+                <p className="exit" title={stage.exit_criteria ? `Moves on when: ${stage.exit_criteria}` : undefined}>
+                  {stage.description}
+                </p>
+              )}
             </header>
             <div className="cards">
               {inStage.map((lead) => (

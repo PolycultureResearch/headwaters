@@ -54,6 +54,7 @@ export interface ContactFields {
 export interface StageFields {
   name?: string;
   kind?: StageKind;
+  description?: string | null;
   exit_criteria?: string | null;
   default_next_action?: string | null;
   stale_after_days?: number | null;
@@ -91,7 +92,7 @@ const LEAD_COLUMNS = [
 ] as const;
 
 const CONTACT_COLUMNS = ["name", "title", "email", "phone", "linkedin", "notes", "is_primary"] as const;
-const STAGE_COLUMNS = ["name", "kind", "exit_criteria", "default_next_action", "stale_after_days"] as const;
+const STAGE_COLUMNS = ["name", "kind", "description", "exit_criteria", "default_next_action", "stale_after_days"] as const;
 
 const DAY_MS = 86_400_000;
 
@@ -157,7 +158,7 @@ export class Store {
   async listStages(): Promise<Stage[]> {
     const { results } = await this.db
       .prepare(
-        "SELECT id, name, position, kind, exit_criteria, default_next_action, stale_after_days FROM stages WHERE archived_at IS NULL ORDER BY position",
+        "SELECT id, name, position, kind, description, exit_criteria, default_next_action, stale_after_days FROM stages WHERE archived_at IS NULL ORDER BY position",
       )
       .all<Stage>();
     return results;
@@ -191,13 +192,14 @@ export class Store {
 
     await this.db
       .prepare(
-        "INSERT INTO stages (id, name, position, kind, exit_criteria, default_next_action, stale_after_days) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO stages (id, name, position, kind, description, exit_criteria, default_next_action, stale_after_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         id,
         fields.name.trim(),
         order.length + 1000,
         kind,
+        fields.description ?? null,
         fields.exit_criteria ?? null,
         fields.default_next_action ?? null,
         fields.stale_after_days ?? null,
@@ -415,7 +417,7 @@ export class Store {
       .prepare("SELECT id FROM leads WHERE archived_at IS NULL AND name LIKE ?")
       .bind(name)
       .first<{ id: string }>();
-    if (existing) throw new UserError(`${name} is already in Headwaters (id ${existing.id}). Update it instead.`);
+    if (existing) throw new UserError(`${name} is already in the pipeline (id ${existing.id}). Update it instead.`);
 
     const stage = options.stage ? await this.resolveStage(options.stage) : (await this.listStages())[0];
     const id = newId();
